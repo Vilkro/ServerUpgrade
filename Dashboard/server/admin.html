@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SSCP Admin</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%2329383d'/%3E%3Ctext x='16' y='23' font-family='Arial' font-size='20' font-weight='bold' fill='%23cc4444' text-anchor='middle'%3E!%3C/text%3E%3C/svg%3E">
+<style>
+:root {
+  color-scheme: light;
+  --page:      #e8e8e8;
+  --panel:     #ffffff;
+  --panel-alt: #f4f4f4;
+  --line:      #b0b8b5;
+  --line-dark: #8a9693;
+  --head:      #29383d;
+  --head-2:    #40545a;
+  --text:      #182224;
+  --muted:     #657471;
+  --blue:      #2f6690;
+  --green:     #2f7d53;
+  --amber:     #a96800;
+  --red:       #b23b3b;
+  --red-light: #fdf0f0;
+  --shadow:    rgba(32, 45, 48, 0.10);
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--page);color:var(--text);font-family:Arial,sans-serif;font-size:13px;line-height:1.4}
+button,input,select,textarea{font:inherit}
+button{min-height:24px;cursor:pointer}
+a{color:#164f7a;text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* layout */
+.page{width:min(1180px,calc(100vw - 20px));margin:0 auto;padding:10px 0 24px}
+.topbar{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin:0 0 8px}
+.brand{display:flex;align-items:baseline;gap:8px}
+.brand h1{margin:0;font-size:16px;line-height:1.1}
+.brand .sub{color:var(--muted);font-size:11px}
+.brand .admin-badge{
+  background:var(--red);color:#fff;font-size:10px;font-weight:bold;
+  padding:1px 5px;border-radius:3px;letter-spacing:.5px;vertical-align:middle
+}
+.toolbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.stamp{color:var(--muted);font-size:11px;white-space:nowrap}
+
+/* server selector */
+.server-tabs{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
+.server-tab{
+  border:1px solid var(--line-dark);background:#f5f5f5;color:var(--text);
+  padding:3px 10px;border-radius:4px;font-size:12px
+}
+.server-tab.active{background:var(--head);color:#fff;border-color:var(--head)}
+.server-tab:hover:not(.active){background:#ebebeb}
+
+/* panel */
+.panel{background:var(--panel);border:1px solid var(--line);box-shadow:0 1px 2px var(--shadow);
+  margin-left:10%;margin-right:10%;margin-bottom:12px}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  min-height:28px;background:var(--head);color:#fff;padding:4px 7px;font-weight:bold
+}
+.panel-head .count{color:#dce9e3;font-weight:normal;font-size:11px}
+.panel-head .phright{display:flex;align-items:center;gap:8px}
+.panel-body{padding:0}
+
+/* tables */
+.table-scroll{width:100%;overflow-x:auto}
+table{width:100%;border-collapse:collapse;table-layout:fixed}
+th,td{padding:5px 8px;border-bottom:1px solid #b0c0ba;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
+th{background:var(--head-2);color:#fff;font-weight:bold;white-space:nowrap;text-align:left}
+tbody tr:nth-child(even){background:var(--panel-alt)}
+tbody tr:hover{background:#eaeaea}
+.num,.right{text-align:right}
+.center{text-align:center}
+.muted{color:var(--muted)}
+.online-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:4px;vertical-align:middle}
+
+/* action buttons */
+.btn{display:inline-block;border:1px solid;padding:2px 8px;border-radius:3px;font-size:12px;white-space:nowrap}
+.btn-kick{background:#fff3e0;border-color:#c97a00;color:#7a4a00}
+.btn-kick:hover{background:#ffe5b0}
+.btn-mute{background:#e8f0ff;border-color:#4a70c0;color:#1a3a80}
+.btn-mute:hover{background:#ccdaff}
+.btn-unmute{background:#e8fff0;border-color:#3a9060;color:#1a5030}
+.btn-unmute:hover{background:#b8ffd0}
+.btn-ban{background:#fdeaea;border-color:var(--red);color:var(--red)}
+.btn-ban:hover{background:#f8c8c8}
+.btn-unban{background:#f4f4f4;border-color:var(--line-dark);color:var(--muted)}
+.btn-unban:hover{background:#e8e8e8;color:var(--text)}
+.btn-add{background:var(--green);border-color:#1e5e37;color:#fff;padding:3px 12px}
+.btn-add:hover{background:#236040}
+.btn-sm{padding:1px 6px;font-size:11px}
+
+/* forms */
+.form-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--line)}
+.form-row label{color:var(--muted);white-space:nowrap;font-size:12px}
+.form-row input,.form-row select,.form-row textarea{
+  border:1px solid var(--line-dark);background:#fff;color:var(--text);
+  padding:3px 6px;border-radius:3px
+}
+.form-row input{min-width:120px}
+.form-row input.wide{min-width:220px}
+.form-row textarea{resize:vertical;min-height:36px}
+.form-note{color:var(--muted);font-size:11px}
+
+/* auth overlay */
+#auth-overlay{
+  position:fixed;inset:0;background:rgba(20,30,32,.6);
+  display:flex;align-items:center;justify-content:center;z-index:100
+}
+.auth-box{background:var(--panel);border:1px solid var(--line);padding:28px 32px;width:320px;box-shadow:0 4px 20px rgba(0,0,0,.25)}
+.auth-box h2{margin:0 0 16px;font-size:15px;color:var(--head)}
+.auth-box input{width:100%;padding:5px 8px;border:1px solid var(--line-dark);border-radius:3px;margin-bottom:10px}
+.auth-box button{width:100%;padding:6px;background:var(--head);color:#fff;border:none;border-radius:3px;font-weight:bold}
+.auth-box button:hover{background:var(--head-2)}
+.auth-error{color:var(--red);font-size:12px;margin-top:6px}
+
+/* status badges */
+.badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:bold}
+.badge-done{background:#dff0e8;color:#1e5e37}
+.badge-pending{background:#fff3cd;color:#7a5000}
+.badge-error{background:#fdeaea;color:var(--red)}
+
+/* feedback toast */
+#toast{
+  position:fixed;bottom:20px;right:20px;background:var(--head);color:#fff;
+  padding:8px 16px;border-radius:4px;font-size:13px;
+  opacity:0;transition:opacity .2s;pointer-events:none;z-index:200
+}
+#toast.show{opacity:1}
+
+/* misc */
+.section-gap{height:4px}
+.empty{color:var(--muted);text-align:center;padding:14px;font-style:italic}
+.country{font-size:11px;color:var(--muted)}
+.guid{font-family:monospace;font-size:11px;color:var(--muted)}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+</style>
+</head>
+<body>
+
+<!-- Auth overlay -->
+<div id="auth-overlay">
+  <div class="auth-box">
+    <h2>SSCP Admin — Authentication</h2>
+    <input type="password" id="auth-input" placeholder="Admin token" autocomplete="current-password">
+    <button onclick="doAuth()">Sign In</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
+<!-- Toast feedback -->
+<div id="toast"></div>
+
+<div class="page" id="main" style="display:none">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="brand">
+      <h1>SSCP&nbsp;<span class="admin-badge">ADMIN</span></h1>
+      <span class="sub">Server Management Panel</span>
+    </div>
+    <div class="toolbar">
+      <span class="stamp" id="last-refresh">—</span>
+      <button class="btn btn-sm" style="border-color:var(--line-dark);background:#f5f5f5" onclick="refresh()">↻ Refresh</button>
+      <button class="btn btn-sm" style="border-color:var(--line-dark);background:#f5f5f5" onclick="doLogout()">Sign out</button>
+    </div>
+  </div>
+
+  <!-- Server tabs -->
+  <div class="server-tabs" id="server-tabs"></div>
+
+  <!-- ── Live Players ──────────────────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-head">
+      <span>Live Players <span class="count" id="live-count"></span></span>
+      <div class="phright">
+        <span class="stamp" id="live-map" style="font-weight:normal;font-size:11px"></span>
+      </div>
+    </div>
+    <div class="panel-body">
+      <div class="table-scroll">
+        <table id="live-table">
+          <colgroup>
+            <col style="width:36px">
+            <col>
+            <col style="width:70px">
+            <col style="width:70px">
+            <col style="width:260px">
+          </colgroup>
+          <thead><tr>
+            <th class="center">#</th>
+            <th>Name</th>
+            <th class="num">Frags</th>
+            <th class="num">Ping</th>
+            <th>Actions</th>
+          </tr></thead>
+          <tbody id="live-body">
+            <tr><td colspan="5" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Player DB ─────────────────────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-head">
+      <span>Player Database <span class="count" id="db-count"></span></span>
+    </div>
+    <div class="panel-body">
+      <!-- search bar -->
+      <div class="form-row">
+        <label>Search</label>
+        <input type="text" id="db-search" class="wide" placeholder="name, GUID, or IP…" oninput="scheduleSearch()">
+        <span class="form-note">Searches last 200 players. Type to filter.</span>
+      </div>
+      <div class="table-scroll">
+        <table id="db-table">
+          <colgroup>
+            <col><!-- name -->
+            <col style="width:110px"><!-- ip -->
+            <col style="width:44px"><!-- cc -->
+            <col style="width:56px"><!-- sess -->
+            <col style="width:66px"><!-- time -->
+            <col style="width:88px"><!-- last seen -->
+            <col style="width:290px"><!-- actions -->
+          </colgroup>
+          <thead><tr>
+            <th>Name</th>
+            <th>IP</th>
+            <th class="center">CC</th>
+            <th class="num">Sess.</th>
+            <th class="num">Time</th>
+            <th>Last seen</th>
+            <th>Actions</th>
+          </tr></thead>
+          <tbody id="db-body">
+            <tr><td colspan="7" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bans ──────────────────────────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-head">
+      <span>Bans <span class="count" id="bans-count"></span></span>
+    </div>
+    <div class="panel-body">
+
+      <!-- Add ban form -->
+      <div class="form-row" style="background:var(--panel-alt)">
+        <label>Add ban</label>
+        <input type="text" id="ban-guid" placeholder="GUID (32 hex)" style="width:240px;font-family:monospace;font-size:12px">
+        <label>IP</label>
+        <input type="text" id="ban-ip" placeholder="1.2.3.4" style="width:120px">
+        <label>Reason</label>
+        <input type="text" id="ban-reason" placeholder="Reason shown to player" class="wide">
+        <label>Expires</label>
+        <select id="ban-expires">
+          <option value="">Permanent</option>
+          <option value="3600">1 hour</option>
+          <option value="86400">1 day</option>
+          <option value="604800">1 week</option>
+          <option value="2592000">30 days</option>
+        </select>
+        <button class="btn btn-add" onclick="addBan()">+ Add Ban</button>
+      </div>
+
+      <div class="table-scroll">
+        <table id="bans-table">
+          <colgroup>
+            <col style="width:42px"><!-- id -->
+            <col style="width:220px"><!-- guid -->
+            <col style="width:110px"><!-- ip -->
+            <col><!-- reason -->
+            <col style="width:70px"><!-- admin -->
+            <col style="width:90px"><!-- banned -->
+            <col style="width:90px"><!-- expires -->
+            <col style="width:54px"><!-- active -->
+            <col style="width:70px"><!-- action -->
+          </colgroup>
+          <thead><tr>
+            <th class="num">#</th>
+            <th>GUID</th>
+            <th>IP</th>
+            <th>Reason</th>
+            <th>From</th>
+            <th>Start</th>
+            <th>End</th>
+            <th class="center">Active</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="bans-body">
+            <tr><td colspan="9" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Command Queue ─────────────────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-head">
+      <span>Recent Commands</span>
+      <button class="btn btn-sm" style="border-color:#6a8080;color:#dce9e3;background:rgba(255,255,255,.08)" onclick="loadPending()">↻</button>
+    </div>
+    <div class="panel-body">
+      <div class="table-scroll">
+        <table id="cmd-table">
+          <colgroup>
+            <col style="width:42px">
+            <col style="width:60px">
+            <col>
+            <col style="width:50px">
+            <col>
+            <col style="width:88px">
+            <col style="width:70px">
+          </colgroup>
+          <thead><tr>
+            <th class="num">#</th>
+            <th>Cmd</th>
+            <th>Target</th>
+            <th class="center">By IP?</th>
+            <th>Param</th>
+            <th>Queued</th>
+            <th class="center">Status</th>
+          </tr></thead>
+          <tbody id="cmd-body">
+            <tr><td colspan="7" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /.page -->
+
+<!-- Mute dialog -->
+<div id="mute-dialog" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:150;align-items:center;justify-content:center">
+  <div style="background:var(--panel);border:1px solid var(--line);padding:22px 26px;width:300px;box-shadow:0 4px 18px rgba(0,0,0,.25)">
+    <div style="font-weight:bold;margin-bottom:12px;color:var(--head)">Mute player</div>
+    <div style="margin-bottom:8px;font-size:12px;color:var(--muted)" id="mute-target-label"></div>
+    <label style="font-size:12px;color:var(--muted)">Duration</label><br>
+    <select id="mute-duration" style="width:100%;margin:4px 0 14px;padding:4px 6px;border:1px solid var(--line-dark);border-radius:3px">
+      <option value="300">5 minutes</option>
+      <option value="1800">30 minutes</option>
+      <option value="3600">1 hour</option>
+      <option value="86400">24 hours</option>
+      <option value="604800">7 days</option>
+    </select>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-mute" style="flex:1" onclick="confirmMute()">Mute</button>
+      <button class="btn" style="flex:1;border-color:var(--line-dark);background:#f5f5f5" onclick="closeMuteDialog()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Kick reason dialog -->
+<div id="kick-dialog" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:150;align-items:center;justify-content:center">
+  <div style="background:var(--panel);border:1px solid var(--line);padding:22px 26px;width:320px;box-shadow:0 4px 18px rgba(0,0,0,.25)">
+    <div style="font-weight:bold;margin-bottom:12px;color:var(--head)">Kick player</div>
+    <div style="margin-bottom:8px;font-size:12px;color:var(--muted)" id="kick-target-label"></div>
+    <label style="font-size:12px;color:var(--muted)">Reason (shown to player)</label><br>
+    <input type="text" id="kick-reason" style="width:100%;margin:4px 0 14px;padding:4px 6px;border:1px solid var(--line-dark);border-radius:3px" placeholder="Kicked by admin" value="Kicked by admin">
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-kick" style="flex:1" onclick="confirmKick()">Kick</button>
+      <button class="btn" style="flex:1;border-color:var(--line-dark);background:#f5f5f5" onclick="closeKickDialog()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let TOKEN   = localStorage.getItem("sscp_admin_token") || "";
+let SERVERS = [];
+let CUR_SRV = "";
+
+// Pending action from dialogs
+let _pendingGuid = "";
+let _pendingIp   = "";
+let _pendingName = "";
+
+// Search debounce timer
+let _searchTimer = null;
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+async function doAuth() {
+  const val = document.getElementById("auth-input").value.trim();
+  if (!val) return;
+  TOKEN = val;
+  // Verify by hitting /api/servers (public) then a protected endpoint
+  try {
+    const r = await apiFetch("/api/servers");
+    if (!r.ok) throw new Error("server error");
+    const srvs = await r.json();
+    SERVERS = srvs;
+    if (!srvs.length) { showAuthError("No servers configured."); return; }
+    CUR_SRV = srvs[0].id;
+
+    // Verify token by hitting a protected endpoint
+    const rp = await apiFetch(`/api/${CUR_SRV}/live`);
+    if (rp.status === 401) { showAuthError("Invalid token."); return; }
+
+    localStorage.setItem("sscp_admin_token", TOKEN);
+    document.getElementById("auth-overlay").style.display = "none";
+    document.getElementById("main").style.display = "";
+    buildServerTabs();
+    refresh();
+  } catch(e) {
+    showAuthError("Connection error: " + e.message);
+  }
+}
+
+function showAuthError(msg) {
+  document.getElementById("auth-error").textContent = msg;
+}
+
+function doLogout() {
+  TOKEN = "";
+  localStorage.removeItem("sscp_admin_token");
+  location.reload();
+}
+
+// Auto-login if token saved
+window.addEventListener("DOMContentLoaded", async () => {
+  document.getElementById("auth-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") doAuth();
+  });
+  if (TOKEN) {
+    document.getElementById("auth-input").value = TOKEN;
+    await doAuth();
+  }
+});
+
+// ─── API wrapper ──────────────────────────────────────────────────────────────
+function apiFetch(path, opts = {}) {
+  opts.headers = Object.assign({ "Authorization": "Bearer " + TOKEN }, opts.headers || {});
+  return fetch(path, opts);
+}
+
+async function apiJSON(path, opts) {
+  const r = await apiFetch(path, opts);
+  if (!r.ok) {
+    const txt = await r.text().catch(() => "");
+    throw new Error(`${r.status}: ${txt || r.statusText}`);
+  }
+  return r.json();
+}
+
+// ─── Server tabs ──────────────────────────────────────────────────────────────
+function buildServerTabs() {
+  const el = document.getElementById("server-tabs");
+  el.innerHTML = SERVERS.map(s =>
+    `<button class="server-tab${s.id===CUR_SRV?" active":""}"
+       onclick="switchServer('${s.id}')">${s.label||s.id}</button>`
+  ).join("");
+}
+
+function switchServer(id) {
+  CUR_SRV = id;
+  buildServerTabs();
+  refresh();
+}
+
+// ─── Refresh all panels ───────────────────────────────────────────────────────
+async function refresh() {
+  document.getElementById("last-refresh").textContent = "Refreshing…";
+  await Promise.all([loadLive(), loadDB(), loadBans(), loadPending()]);
+  document.getElementById("last-refresh").textContent =
+    "Updated " + new Date().toLocaleTimeString();
+}
+
+// ─── Live Players ─────────────────────────────────────────────────────────────
+async function loadLive() {
+  const tbody = document.getElementById("live-body");
+  try {
+    const data = await apiJSON(`/api/${CUR_SRV}/live`);
+    const ps = data.players || [];
+    document.getElementById("live-count").textContent =
+      `${ps.length}/${data.maxplayers||"?"}`;
+    document.getElementById("live-map").textContent =
+      data.online ? (data.mapname || "") + (data.gametype ? " · " + data.gametype : "") : "offline";
+
+    if (!ps.length) {
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">${data.online?"No players online":"Server offline"}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = ps.map(p => `
+      <tr>
+        <td class="center muted">${p.slot}</td>
+        <td class="truncate"><strong>${esc(p.name)}</strong></td>
+        <td class="num">${p.frags}</td>
+        <td class="num">${p.ping}</td>
+        <td>
+          <button class="btn btn-kick btn-sm" onclick="openKickByName('${esc(p.name)}')">Kick</button>
+          <button class="btn btn-mute btn-sm" onclick="openMuteByName('${esc(p.name)}')">Mute</button>
+        </td>
+      </tr>`).join("");
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty muted">${esc(e.message)}</td></tr>`;
+  }
+}
+
+// ─── Player DB ───────────────────────────────────────────────────────────────
+let _allDbRows = [];
+
+async function loadDB() {
+  const q = document.getElementById("db-search").value.trim();
+  try {
+    const data = await apiJSON(`/api/${CUR_SRV}/players?q=${encodeURIComponent(q)}`);
+    _allDbRows = data;
+    renderDB(data);
+  } catch(e) {
+    document.getElementById("db-body").innerHTML =
+      `<tr><td colspan="7" class="empty muted">${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderDB(rows) {
+  document.getElementById("db-count").textContent = rows.length ? `(${rows.length})` : "";
+  const tbody = document.getElementById("db-body");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty">No players found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows.map(p => `
+    <tr>
+      <td class="truncate">
+        ${p.online ? '<span class="online-dot" title="Online now"></span>' : ""}
+        <strong title="${esc(p.guid)}">${esc(p.name)}</strong>
+        <div class="guid truncate">${esc(p.guid)}</div>
+      </td>
+      <td class="truncate">${esc(p.ip||"")}</td>
+      <td class="center country">${esc(p.country||"")}</td>
+      <td class="num">${p.sessions}</td>
+      <td class="num">${fmtTime(p.playtime)}</td>
+      <td class="muted" style="font-size:11px">${fmtDate(p.last_seen)}</td>
+      <td>
+        <button class="btn btn-kick btn-sm" onclick="openKick('${esc(p.guid)}','${esc(p.ip||"")}','${esc(p.name)}')">Kick</button>
+        <button class="btn btn-mute btn-sm" onclick="openMute('${esc(p.guid)}','${esc(p.ip||"")}','${esc(p.name)}')">Mute</button>
+        <button class="btn btn-unmute btn-sm" onclick="unmute('${esc(p.guid)}','${esc(p.name)}')">Unmute</button>
+        <button class="btn btn-ban btn-sm" onclick="quickBan('${esc(p.guid)}','${esc(p.ip||"")}','${esc(p.name)}')">Ban</button>
+      </td>
+    </tr>`).join("");
+}
+
+function scheduleSearch() {
+  clearTimeout(_searchTimer);
+  _searchTimer = setTimeout(loadDB, 350);
+}
+
+// ─── Bans ─────────────────────────────────────────────────────────────────────
+async function loadBans() {
+  const tbody = document.getElementById("bans-body");
+  try {
+    const rows = await apiJSON(`/api/${CUR_SRV}/bans`);
+    const active = rows.filter(r => r.active);
+    document.getElementById("bans-count").textContent =
+      `(${active.length} active, ${rows.length} total)`;
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="9" class="empty">No bans.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(b => {
+      const expired = b.expires_at && b.expires_at < (Date.now()/1000);
+      return `
+        <tr style="${!b.active ? "opacity:.45" : ""}${expired ? ";background:#fff8f0" : ""}">
+          <td class="num muted">${b.id}</td>
+          <td class="guid truncate" title="${esc(b.guid||"")}">${esc(b.guid||"—")}</td>
+          <td class="truncate">${esc(b.ip||"—")}</td>
+          <td class="truncate" title="${esc(b.reason||"")}">${esc(b.reason||"—")}</td>
+          <td class="muted truncate">${esc(b.admin||"")}</td>
+          <td class="muted" style="font-size:11px">${fmtDate(b.banned_at)}</td>
+          <td class="muted" style="font-size:11px">${b.expires_at ? fmtDate(b.expires_at) : "∞"}</td>
+          <td class="center">${b.active && !expired ? "✓" : "<span class='muted'>—</span>"}</td>
+          <td>
+            ${b.active
+              ? `<button class="btn btn-unban btn-sm" onclick="removeBan(${b.id})">Unban</button>`
+              : ""}
+          </td>
+        </tr>`;
+    }).join("");
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="9" class="empty muted">${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function addBan() {
+  const guid      = document.getElementById("ban-guid").value.trim();
+  const ip        = document.getElementById("ban-ip").value.trim();
+  const reason    = document.getElementById("ban-reason").value.trim() || "Banned by admin";
+  const expiresIn = document.getElementById("ban-expires").value;
+
+  if (!guid && !ip) { toast("Enter a GUID and/or IP to ban."); return; }
+
+  const body = { guid: guid||null, ip: ip||null, reason, admin: "web" };
+  if (expiresIn) body.expires_at = Math.floor(Date.now()/1000) + parseInt(expiresIn);
+
+  try {
+    const r = await apiJSON(`/api/${CUR_SRV}/bans`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    });
+    toast(`Ban #${r.id} added. Kick queued.`);
+    document.getElementById("ban-guid").value = "";
+    document.getElementById("ban-ip").value   = "";
+    document.getElementById("ban-reason").value = "";
+    await loadBans();
+    await loadPending();
+  } catch(e) {
+    toast("Error: " + e.message);
+  }
+}
+
+async function removeBan(id) {
+  if (!confirm(`Remove ban #${id}? The player will be able to reconnect.`)) return;
+  try {
+    await apiJSON(`/api/${CUR_SRV}/bans/${id}`, { method: "DELETE" });
+    toast(`Ban #${id} deactivated.`);
+    await loadBans();
+  } catch(e) {
+    toast("Error: " + e.message);
+  }
+}
+
+function quickBan(guid, ip, name) {
+  // Pre-fill the ban form and scroll to it
+  document.getElementById("ban-guid").value   = guid;
+  document.getElementById("ban-ip").value     = ip;
+  document.getElementById("ban-reason").value = "";
+  document.querySelector("#bans-body").closest(".panel").scrollIntoView({behavior:"smooth"});
+  document.getElementById("ban-reason").focus();
+  toast(`Ban form pre-filled for ${name}.`);
+}
+
+// ─── Kick dialog ──────────────────────────────────────────────────────────────
+function openKick(guid, ip, name) {
+  _pendingGuid = guid; _pendingIp = ip; _pendingName = name;
+  document.getElementById("kick-target-label").textContent = name || guid || ip;
+  document.getElementById("kick-reason").value = "Kicked by admin";
+  showDialog("kick-dialog");
+}
+
+function openKickByName(name) {
+  // Find in DB rows
+  const row = _allDbRows.find(r => r.name === name);
+  openKick(row ? row.guid : "", row ? row.ip : "", name);
+}
+
+function closeKickDialog() { hideDialog("kick-dialog"); }
+
+async function confirmKick() {
+  const reason = document.getElementById("kick-reason").value.trim() || "Kicked by admin";
+  hideDialog("kick-dialog");
+  await doKick(_pendingGuid, _pendingIp, reason);
+}
+
+async function doKick(guid, ip, reason) {
+  const body = { reason };
+  if (guid) body.guid = guid; else body.ip = ip;
+  try {
+    const r = await apiJSON(`/api/${CUR_SRV}/kick`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    });
+    toast(`Kick queued (cmd #${r.cmd_id}). Will execute within ~1 second.`);
+    await loadPending();
+  } catch(e) {
+    toast("Error: " + e.message);
+  }
+}
+
+// ─── Mute dialog ──────────────────────────────────────────────────────────────
+function openMute(guid, ip, name) {
+  _pendingGuid = guid; _pendingIp = ip; _pendingName = name;
+  document.getElementById("mute-target-label").textContent = name || guid || ip;
+  showDialog("mute-dialog");
+}
+
+function openMuteByName(name) {
+  const row = _allDbRows.find(r => r.name === name);
+  openMute(row ? row.guid : "", row ? row.ip : "", name);
+}
+
+function closeMuteDialog() { hideDialog("mute-dialog"); }
+
+async function confirmMute() {
+  const duration = parseInt(document.getElementById("mute-duration").value);
+  hideDialog("mute-dialog");
+  const body = { duration };
+  if (_pendingGuid) body.guid = _pendingGuid; else body.ip = _pendingIp;
+  try {
+    const r = await apiJSON(`/api/${CUR_SRV}/mute`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    });
+    toast(`Mute queued (cmd #${r.cmd_id}). Duration: ${fmtSecs(duration)}.`);
+    await loadPending();
+  } catch(e) {
+    toast("Error: " + e.message);
+  }
+}
+
+async function unmute(guid, name) {
+  const body = { guid };
+  try {
+    const r = await apiJSON(`/api/${CUR_SRV}/unmute`, {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(body)
+    });
+    toast(`Unmute queued (cmd #${r.cmd_id}) for ${name}.`);
+    await loadPending();
+  } catch(e) {
+    toast("Error: " + e.message);
+  }
+}
+
+// ─── Command queue ────────────────────────────────────────────────────────────
+async function loadPending() {
+  const tbody = document.getElementById("cmd-body");
+  try {
+    const rows = await apiJSON(`/api/${CUR_SRV}/pending`);
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty">No recent commands.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(c => {
+      let badge;
+      if (c.done) {
+        badge = c.result && c.result.startsWith("not_found")
+          ? `<span class="badge badge-error" title="${esc(c.result)}">not found</span>`
+          : `<span class="badge badge-done" title="${esc(c.result||"")}">done</span>`;
+      } else {
+        badge = `<span class="badge badge-pending">pending</span>`;
+      }
+      return `
+        <tr>
+          <td class="num muted">${c.id}</td>
+          <td><strong>${esc(c.cmd)}</strong></td>
+          <td class="guid truncate" title="${esc(c.target)}">${esc(c.target)}</td>
+          <td class="center muted">${c.by_ip ? "IP" : "GUID"}</td>
+          <td class="truncate muted" title="${esc(c.param||"")}">${esc(c.param||"—")}</td>
+          <td class="muted" style="font-size:11px">${fmtDate(c.created_at)}</td>
+          <td class="center">${badge}</td>
+        </tr>`;
+    }).join("");
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="empty muted">${esc(e.message)}</td></tr>`;
+  }
+}
+
+// ─── Dialogs ──────────────────────────────────────────────────────────────────
+function showDialog(id) { document.getElementById(id).style.display = "flex"; }
+function hideDialog(id) { document.getElementById(id).style.display = "none"; }
+
+// Close dialogs on backdrop click
+document.addEventListener("click", e => {
+  ["kick-dialog","mute-dialog"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && e.target === el) el.style.display = "none";
+  });
+});
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+let _toastTimer;
+function toast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.classList.add("show");
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove("show"), 3500);
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+    .replace(/"/g,"&quot;");
+}
+
+function fmtTime(secs) {
+  if (!secs) return "—";
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (h >= 100) return `${h}h`;
+  if (h > 0)    return `${h}h${m}m`;
+  return `${m}m`;
+}
+
+function fmtSecs(s) {
+  if (s < 60)   return `${s}s`;
+  if (s < 3600) return `${Math.round(s/60)}m`;
+  return `${Math.round(s/3600)}h`;
+}
+
+function fmtDate(ts) {
+  if (!ts) return "—";
+  // ts may be seconds (Unix) or a string date
+  const d = (typeof ts === "number" && ts < 1e12)
+    ? new Date(ts * 1000)
+    : new Date(ts);
+  if (isNaN(d)) return String(ts);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60)      return "just now";
+  if (diff < 3600)    return Math.floor(diff/60) + "m ago";
+  if (diff < 86400)   return Math.floor(diff/3600) + "h ago";
+  if (diff < 86400*7) return Math.floor(diff/86400) + "d ago";
+  return d.toLocaleDateString();
+}
+</script>
+</body>
+</html>

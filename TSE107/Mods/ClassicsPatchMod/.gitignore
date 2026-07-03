@@ -1,0 +1,16 @@
+# Compiled files
+*.dll
+*.exe
+!Bin/*.exe
+
+# Generated configuration files
+Data/*.bin
+Data/*.pri
+SaveGame/*
+Scripts/PersistentSymbols.ini
+Temp/*
+Players/*.plr
+*.log
+*.rpt
+*.gms
+*.vis

@@ -1,0 +1,1760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyper Server</title>
+<link rel="icon" href="Manface.webp">
+<style>
+:root {
+  color-scheme: light;
+  --page: #e8e8e8;
+  --panel: #ffffff;
+  --panel-alt: #f4f4f4;
+  --line: #b0b8b5;
+  --line-dark: #8a9693;
+  --head: #29383d;
+  --head-2: #40545a;
+  --text: #182224;
+  --muted: #657471;
+  --blue: #2f6690;
+  --green: #2f7d53;
+  --amber: #a96800;
+  --red: #b23b3b;
+  --shadow: rgba(32, 45, 48, 0.10);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  /* background-image: url('bg.jpg'); background-size: cover; background-attachment: fixed; */
+  color: var(--text);
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+button, input, select {
+  font: inherit;
+}
+
+button {
+  min-height: 24px;
+}
+
+a {
+  color: #164f7a;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.page {
+  width: min(1180px, calc(100vw - 20px));
+  margin: 0 auto;
+  padding: 10px 0 18px;
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+  margin: 0 0 8px;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.brand .sub {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.tool-btn {
+  border: 1px solid var(--line-dark);
+  background: #f5f5f5;
+  color: var(--text);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tool-btn:hover {
+  background: #ebebeb;
+}
+
+.tool-btn.active {
+  background: #dde8e2;
+  border-color: #5f9473;
+  color: #164b2e;
+}
+
+.stamp {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 1px 2px var(--shadow);
+  margin-left: 10%;
+  margin-right: 10%;
+  margin-bottom: 10px;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 28px;
+  background: var(--head);
+  color: #fff;
+  padding: 4px 7px;
+  font-weight: bold;
+}
+
+.panel-head .count {
+  color: #dce9e3;
+  font-weight: normal;
+}
+
+.panel-body {
+  padding: 0;
+}
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+th, td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #b0c0ba;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+th {
+  background: var(--head-2);
+  color: #fff;
+  font-weight: bold;
+  white-space: nowrap;
+  text-align: left;
+}
+
+tbody tr:nth-child(even) {
+  background: var(--panel-alt);
+}
+
+tbody tr:hover {
+  background: #eaeaea;
+}
+
+.num, .right {
+  text-align: right;
+}
+
+.center {
+  text-align: center;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.name {
+  font-weight: normal;
+  min-width: 0;
+}
+
+.sam-bold {
+  font-weight: 700;
+}
+
+.sam-italic {
+  font-style: italic;
+}
+
+/* ^f# flash effect: sin-wave alpha animation matching the engine's behavior.
+   Speed digit 0 = slowest (2.4s), digit 9 = fastest (0.2s). */
+@keyframes sam-flash {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.15; }
+}
+
+/* sam-name: plain Arial with the same 1px shadow the engine renders */
+.sam-name {
+  font-weight: normal;
+  text-shadow: 1px 1px 1px #646363;
+}
+
+.server-name {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.server-name b,
+.server-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-name span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: normal;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  vertical-align: middle;
+}
+
+.status-dot.on {
+  background: var(--green);
+  color: var(--green);
+}
+
+.status-dot.off {
+  background: transparent;
+  color: var(--red);
+}
+
+.toggle-cell {
+  width: 24px;
+}
+
+.toggle-btn {
+  width: 18px;
+  height: 18px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+}
+
+.toggle-btn:hover {
+  border-color: var(--line-dark);
+  background: #efefef;
+}
+
+.chev {
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid #42545a;
+  transition: transform 0.12s ease;
+}
+
+.toggle-btn.open .chev {
+  transform: rotate(90deg);
+}
+
+.server-row {
+  cursor: pointer;
+}
+
+.server-row.open {
+  background: #d8d8d8;
+}
+
+.server-row.open:hover {
+  background: #d2d2d2;
+}
+
+.detail-row {
+  display: none;
+  background: #ffffff;
+}
+
+.detail-row.open {
+  display: table-row;
+}
+
+.detail-cell {
+  padding: 0;
+  border-bottom: 1px solid var(--line-dark);
+}
+
+.detail-grid {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px 10px 36px;
+}
+
+.section {
+  border: 1px solid #c0c8c5;
+  background: #fff;
+}
+
+.section-head {
+  width: 100%;
+  min-height: 25px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  border-bottom: 1px solid #c0c8c5;
+  border-radius: 0;
+  background: #d8d8d8;
+  padding: 4px 7px;
+  cursor: pointer;
+  text-align: left;
+  font-weight: bold;
+}
+
+.section-head:hover {
+  background: #dadada;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.section-body {
+  display: none;
+}
+
+.section.open .section-body {
+  display: block;
+}
+
+.mini-chev {
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 6px solid #42545a;
+  flex: 0 0 auto;
+}
+
+.section.open .mini-chev {
+  transform: rotate(90deg);
+}
+
+.empty {
+  padding: 8px;
+  color: var(--muted);
+}
+
+.tag {
+  display: inline-block;
+  min-width: 24px;
+  padding: 1px 5px;
+  // border: 1px solid #c5d0cb;
+  // background: #f5f8f6;
+  border-radius: 4px;
+  color: #40504d;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tag.good {
+  // border-color: #93b99e;
+  // background: #e2f1e6;
+  color: #22603b;
+}
+
+.tag.warn {
+  // border-color: #d5ba7b;
+  // background: #f4ecd8;
+  color: #7b4d00;
+}
+
+.tag.bad {
+  // border-color: #d49b9b;
+  // background: #f5e3e3;
+  color: #8b2929;
+}
+
+.meter {
+  width: 100%;
+  height: 8px;
+  border: 1px solid #b8c5bf;
+  background: #eef2ef;
+  overflow: hidden;
+}
+
+.meter span {
+  display: block;
+  height: 100%;
+  background: var(--green);
+}
+
+.download {
+  display: inline-block;
+  border: 1px solid #42677c;
+  background: #eaf2f6;
+  color: #183d51;
+  border-radius: 4px;
+  padding: 1px 7px;
+  min-width: 72px;
+  text-align: center;
+}
+
+.download:hover {
+  background: #dbeaf1;
+  text-decoration: none;
+}
+
+.demo-dl-all {
+  font-weight: bold;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.demo-dl-all:hover {
+  color: var(--blue);
+  text-decoration: underline;
+}
+
+.demo-game-row {
+  cursor: pointer;
+}
+
+
+.demo-game-row.open {
+  background: #d8d8d8;
+}
+
+.demo-game-detail {
+  display: none;
+  background: #ffffff;
+}
+
+.demo-game-detail.open {
+  display: table-row;
+}
+
+.demo-detail-cell {
+  padding: 0;
+}
+
+/* Part download links in main row */
+.part-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  align-items: center;
+  padding: 1px 0;
+}
+
+/* Parts download strip inside demo detail expand */
+.parts-dl-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 6px 8px;
+  background: #f0f0f0;
+  border-bottom: 1px solid #b0b8b5;
+}
+
+.parts-dl-label {
+  color: var(--muted);
+  font-size: 11px;
+  margin-right: 2px;
+}
+
+.part-dl-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 20px;
+  border: 1px solid #42677c;
+  background: #eaf2f6;
+  color: #183d51;
+  border-radius: 3px;
+  font-size: 11px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.part-dl-btn:hover {
+  background: #dbeaf1;
+  text-decoration: none;
+}
+
+.part-link {
+  display: inline-grid;
+  place-items: center;
+  min-width: 20px;
+  height: 16px;
+  border: 1px solid #42677c;
+  background: #eaf2f6;
+  color: #183d51;
+  border-radius: 3px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.part-link:hover {
+  background: #dbeaf1;
+  text-decoration: none;
+}
+
+/* Presence grid: fixed-width cells so many-part sessions don't sprawl */
+.part-strip {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  overflow-x: auto;
+  max-width: 340px;
+}
+
+.part-cell {
+  flex: 0 0 12px;
+  height: 14px;
+  border: 1px solid #c0c8c5;
+  background: #efefef;
+}
+
+.part-cell.on {
+  border-color: #4c8a61;
+  background: #58a06d;
+}
+
+.part-cell.off {
+  border-color: #d0d4d3;
+  background: #f5f5f5;
+}
+
+/* Part number header above presence cells in detail table */
+.presence-col-head {
+  padding-bottom: 0;
+}
+
+.presence-header {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  overflow-x: hidden;
+  max-width: 340px;
+}
+
+.part-hdr {
+  flex: 0 0 12px;
+  font-size: 9px;
+  text-align: center;
+  color: var(--muted);
+  overflow: hidden;
+  line-height: 1;
+}
+
+.graph-box {
+  border: 1px solid #c0c8c5;
+  background: #fff;
+  padding: 4px;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 96px;
+}
+
+.mini-graph canvas {
+  height: 64px;
+}
+
+.legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 5px 7px 7px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.legend i {
+  display: inline-block;
+  width: 14px;
+  height: 7px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.lg-players { background: var(--blue); }
+.lg-map { background: var(--amber); }
+.lg-offline { background: var(--red); }
+
+.map-unplayed td {
+  color: var(--muted);
+}
+
+.map-unplayed td:nth-child(2) {
+  color: var(--text);
+}
+
+.err {
+  color: var(--red);
+}
+
+
+.online-table { min-width: 620px; }
+.server-table { min-width: 920px; }
+.sub-table { min-width: 760px; }
+.demo-table { min-width: 820px; }
+.demo-detail-table { min-width: 700px; }
+
+/* Sub-table headers inside expanded sections — lighter than main panel headers */
+.detail-grid .sub-table th,
+.demo-detail-cell .sub-table th {
+  background: #90A3AD;
+}
+
+.w-status { width: 24px; }
+.w-toggle { width: 28px; }
+.w-p { width: 92px; }
+.w-small { width: 56px; }
+.w-map { width: 610px; }
+.w-time { width: 92px; }
+.w-size { width: 82px; }
+.w-country { width: 316px; }
+.w-ping { width: 112px; }
+.w-active { width: 90px; }
+.w-server { width: 450px; }
+.w-action { width: 88px; }
+.w-duration { width: 82px; }
+
+/* ── Site header ─────────────────────────────────────────────────────────── */
+.site-header {
+  background: var(--head);
+  border-bottom: 3px solid #e8a020;
+  margin-bottom: 10px;
+  padding: 0 12px;
+}
+
+.site-header-inner {
+  width: min(1180px, calc(100vw - 24px));
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 64px;
+}
+
+.site-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  text-decoration: none;
+}
+
+.site-logo-icon {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+}
+
+.site-logo-text {
+  min-width: 0;
+}
+
+.site-logo-title {
+  font-family: Arial, sans-serif;
+  font-size: 22px;
+  font-weight: bold;
+  color: #e8a020;
+  letter-spacing: 0.5px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.site-logo-sub {
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  color: #a8bcb5;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.site-header-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.site-header .tool-btn {
+  background: #3a4e54;
+  border-color: #5a7278;
+  color: #d0dcd8;
+}
+
+.site-header .tool-btn:hover {
+  background: #445c63;
+}
+
+.site-header .tool-btn.active {
+  background: #2a5c3a;
+  border-color: #4a8c60;
+  color: #b0e0c0;
+}
+
+.site-header .stamp {
+  color: #8aaba3;
+}
+
+@media (max-width: 720px) {
+  .site-header-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 8px 0;
+    min-height: unset;
+  }
+  .site-logo-title { font-size: 18px; }
+}
+
+
+  .page {
+    width: calc(100vw - 12px);
+    padding-top: 6px;
+  }
+
+  .topbar {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .toolbar {
+    justify-content: flex-start;
+  }
+
+  .brand {
+    flex-wrap: wrap;
+  }
+
+  .brand .sub {
+    white-space: normal;
+  }
+
+  .detail-grid {
+    padding-left: 8px;
+  }
+}
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-logo" href="#">
+      <svg class="site-logo-icon" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
+        <!-- Outer ring -->
+        <circle cx="22" cy="22" r="20" fill="#1a2830" stroke="#e8a020" stroke-width="2"/>
+        <!-- Crosshair lines -->
+        <line x1="22" y1="4"  x2="22" y2="12" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="22" y1="32" x2="22" y2="40" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="4"  y1="22" x2="12" y2="22" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
+        <line x1="32" y1="22" x2="40" y2="22" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
+        <!-- Inner ring -->
+        <circle cx="22" cy="22" r="9" fill="none" stroke="#e8a020" stroke-width="1.2"/>
+        <!-- Center dot -->
+        <circle cx="22" cy="22" r="3" fill="#e8a020"/>
+      </svg>
+      <div class="site-logo-text">
+        <div class="site-logo-title">Hyper Server</div>
+        <div class="site-logo-sub">Serious Sam: The Second Encounter 1.07 &nbsp;·&nbsp; ClassicsPatch</div>
+      </div>
+    </a>
+    <div class="site-header-toolbar">
+      <button class="tool-btn" id="refresh-btn" type="button" title="Refresh now">Refresh</button>
+      <button class="tool-btn active" id="auto-btn" type="button" title="Toggle auto refresh">Auto</button>
+      <span class="stamp" id="stamp">Loading...</span>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+
+  <section class="panel" id="online-panel">
+    <div class="panel-head">
+      <span>Online Players <span class="count" id="online-count">(0)</span></span>
+      <span class="count" id="online-ping"></span>
+    </div>
+    <div class="panel-body table-scroll">
+      <table class="online-table">
+        <thead>
+          <tr>
+            <th class="w-small center">#</th>
+            <th>Player</th>
+            <th class="w-country">Country</th>
+            <th class="w-server">Server</th>
+            <th class="w-ping right">Ping</th>
+          </tr>
+        </thead>
+        <tbody id="online-body">
+          <tr><td colspan="5" class="empty">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <span>Server List <span class="count" id="server-count">(0)</span></span>
+      <span class="count" id="server-total"></span>
+    </div>
+    <div class="panel-body table-scroll">
+      <table class="server-table">
+        <thead>
+          <tr>
+            <th class="w-status center"></th>
+            <th class="w-toggle center"></th>
+            <th>Server</th>
+            <th class="w-p center" title="Active players">Players</th>
+            <th class="w-small center" title="Unique players in the last 24 hours">Peak</th>
+            <th class="w-map">Map</th>
+            <th class="w-small center" title="Maps in the last 24 hours">Maps</th>
+            <th class="w-small center" title="Recorded demos">Rec</th>
+            <th class="w-small center" title="Offline events in the last 24 hours">Crash</th>
+            <th class="w-time">Seen</th>
+          </tr>
+        </thead>
+        <tbody id="server-body">
+          <tr><td colspan="10" class="empty">Loading servers...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <span>24h Activity</span>
+      <span class="count">All servers</span>
+    </div>
+    <div class="panel-body">
+      <div class="graph-box">
+        <canvas id="activity-canvas"></canvas>
+      </div>
+      <div class="legend">
+        <span><i class="lg-players"></i>Player count</span>
+        <span><i class="lg-map"></i>Map changed</span>
+        <span><i class="lg-offline"></i>Offline</span>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+const API = "";
+const REFRESH_MS = 15000;
+const DAY = 86400;
+
+// ─── Static map list ──────────────────────────────────────────────────────────
+// Add every map available on each server so they always appear in Active Maps
+// even before anyone has played them. Stats (players, runs, playtime, last seen)
+// are filled in from the live /api/maps data when available.
+//
+// Key = server id (string, must match the id field in /api/servers).
+// Value = array of { map, title, pack?, pack_url? } objects.
+//   map      — raw .wld path as stored in the DB, e.g. "Levels\\1_2_Palenque.wld"
+//   title    — friendly display name, e.g. "Valley of the Jaguar"
+//   pack     — (optional) map pack name shown in the MapPack column
+//   pack_url — (optional) URL to download the pack file served by Flask from maps_dir.
+//              Format: "/api/maps/<server_id>/<filename.gro>"  (also .zip .7z .rar)
+//
+// Example:
+// const STATIC_MAPS = {
+//   "myserver": [
+//     { map: "Levels\\1_1_Hatshepsut.wld", title: "Hatshepsut" },
+//     { map: "Levels\\1_2_Palenque.wld",   title: "Valley of the Jaguar",
+//       pack: "Custom Pack v2", pack_url: "/api/maps/myserver/custom_pack_v2.gro" },
+//   ]
+// };
+const STATIC_MAPS = {
+  "srv1": [
+    { map: "Levels\\1_1_Palenque.wld",          title: "Sierra de Chiapas",
+	  pack: "Serious Sam" },
+    { map: "Levels\\1_2_Palenque.wld",           title: "Valley of the Jaguar" },
+    { map: "Levels\\CustomTSE\\RJ-WORLD.wld",    title: "RJ World",
+      pack: "RJ-World", pack_url: "/api/maps/srv1/FE_COOP_RJ-WORLD.gro" },
+    { map: "Levels\\SuburbsX.wld",               title: "Suburbs X" },
+    { map: "Levels\\SpecialMapVer1.6.wld",       title: "Special Jumps" },
+  ],
+  "srv2": [
+    { map: "Levels\\!_FarmingMap_MrOgurchick_1\\Farming.wld", title: "Majestic Portal: Search for Artifacts",
+	  pack: "MrOgurchick's", pack_url: "/api/maps/srv2/Mr.OgurchickT_TSpecialHyperServerMiningMapV4.gro" },
+  ],
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
+let autoRefresh = true;
+let refreshTimer = null;
+let expandedServers = Object.create(null);
+let sectionState = Object.create(null);
+let lastServers = [];
+let activityCache = {};
+let eventsCache = {};
+let demoGameCache = {};
+let mapCache = {};
+let expandedDemoGames = Object.create(null);
+
+const el = {
+  stamp: document.getElementById("stamp"),
+  onlineCount: document.getElementById("online-count"),
+  onlinePing: document.getElementById("online-ping"),
+  onlineBody: document.getElementById("online-body"),
+  serverCount: document.getElementById("server-count"),
+  serverTotal: document.getElementById("server-total"),
+  serverBody: document.getElementById("server-body"),
+  autoBtn: document.getElementById("auto-btn"),
+  refreshBtn: document.getElementById("refresh-btn"),
+  activityCanvas: document.getElementById("activity-canvas")
+};
+
+function html(value) {
+  return String(value == null ? "" : value).replace(/[&<>"']/g, ch => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[ch]);
+}
+
+function cleanSam(value) {
+  // Strip all Serious Sam markup tokens.
+  // Based on actual engine source (DrawPort.cpp, PutText):
+  //   ^cRRGGBB  — color set (lowercase c + 6 hex)
+  //   ^aAA      — alpha set (lowercase a + 2 hex)
+  //   ^f#       — flash (lowercase f + 1 digit)
+  //   ^r        — reset all
+  //   ^b ^B     — bold on/off
+  //   ^i ^I     — italic on/off
+  //   ^C        — color reset
+  //   ^A        — alpha reset
+  //   ^F        — flash off
+  //   ^o        — console override flag
+  //   ^^        — literal ^
+  // Order matters: consume longest patterns first.
+  return String(value || "")
+    .replace(/\^c[0-9a-fA-F]{6}/g, "")   // ^cRRGGBB
+    .replace(/\^a[0-9a-fA-F]{2}/g, "")   // ^aAA
+    .replace(/\^f./g, "")                 // ^f# (flash with any digit/char)
+    .replace(/\^[rRbBiIoCAF^]/g, "")      // all single-char codes + ^^
+    .trim();
+}
+
+function samText(value, fallback) {
+  // Render Serious Sam in-game text markup as HTML spans.
+  //
+  // Source: Croteam-official/Serious-Engine, Sources/Engine/Graphics/DrawPort.cpp
+  //         CDrawPort::PutText(), lines ~1299-1349
+  //
+  // Supported codes (case-SENSITIVE as in engine):
+  //   ^cRRGGBB  — set text color (6 hex digits, lowercase c only)
+  //   ^C        — reset color to default
+  //   ^aAA      — set alpha/opacity (2 hex digits, lowercase a only)
+  //   ^A        — reset alpha to default
+  //   ^f#       — start flash effect (# = speed digit 0-9, consumes the digit)
+  //   ^F        — stop flash
+  //   ^b        — bold on
+  //   ^B        — bold off
+  //   ^i        — italic on
+  //   ^I        — italic off
+  //   ^r        — reset everything (color, alpha, bold, italic, flash)
+  //   ^o        — console override toggle (no visual effect in HTML)
+  //   ^^        — literal ^ character
+  //
+  // HTML span nesting (outermost → innermost):
+  //   color span  (#cRRGGBB)
+  //     alpha span (opacity)
+  //       style span (bold / italic / flash — one span per run, not per character)
+  //         text characters
+  //
+  const input = String(value || fallback || "");
+  let out = "";
+
+  // Layer state
+  let color     = null;   // current hex string or null
+  let alpha     = null;   // current opacity 0..1 or null
+  let bold      = false;
+  let italic    = false;
+  let flash     = 0;      // 0 = off, 1-10 = speed (digit 0→1, digit 9→10)
+
+  // Which layers are currently open in the output
+  let openColor = null;
+  let openAlpha = null;
+  let openStyle = null;   // string key representing the open style span, or null
+
+  function styleKey() {
+    return (bold ? "b" : "") + (italic ? "i" : "") + (flash ? "f" + flash : "");
+  }
+
+  // Map flash speed 1–10 to animation duration: speed 1 (digit 0) = 2.4s, speed 10 (digit 9) = 0.2s
+  function flashDuration(speed) {
+    return (2.4 - (speed - 1) * (2.2 / 9)).toFixed(2) + "s";
+  }
+
+  function closeStyle() {
+    if (openStyle !== null) { out += "</span>"; openStyle = null; }
+  }
+
+  function closeAlpha() {
+    closeStyle();
+    if (openAlpha !== null) { out += "</span>"; openAlpha = null; }
+  }
+
+  function closeColor() {
+    closeAlpha();
+    if (openColor !== null) { out += "</span>"; openColor = null; }
+  }
+
+  // Call before emitting any text character — ensures all layers are open and current.
+  function syncSpans() {
+    // Color layer
+    if (color !== openColor) {
+      closeColor();
+      if (color !== null) {
+        out += '<span style="color:#' + color + '">';
+        openColor = color;
+      }
+    }
+    // Alpha layer (inside color)
+    if (alpha !== openAlpha) {
+      closeAlpha();
+      if (alpha !== null) {
+        out += '<span style="opacity:' + alpha.toFixed(2) + '">';
+        openAlpha = alpha;
+      }
+    }
+    // Style layer (inside alpha/color) — bold, italic, flash
+    const key = styleKey();
+    if (key !== openStyle) {
+      closeStyle();
+      if (key !== "") {
+        let css = "";
+        if (bold)   css += "font-weight:bold;";
+        if (italic) css += "font-style:italic;";
+        if (flash)  css += "animation:sam-flash " + flashDuration(flash) + " ease-in-out infinite;";
+        out += '<span style="' + css + '">';
+        openStyle = key;
+      }
+    }
+  }
+
+  for (let i = 0; i < input.length;) {
+    if (input[i] === "^" && i + 1 < input.length) {
+      const code = input[i + 1];
+
+      // ^cRRGGBB — set color
+      if (code === "c") {
+        const hex = input.slice(i + 2, i + 8);
+        if (/^[0-9a-fA-F]{6}$/.test(hex)) {
+          color = hex;
+          i += 8;
+          continue;
+        }
+        // not 6 hex digits — fall through to unrecognized
+      }
+      // ^C — color reset
+      else if (code === "C") { color = null; i += 2; continue; }
+      // ^aAA — set alpha
+      else if (code === "a") {
+        const hex = input.slice(i + 2, i + 4);
+        if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+          alpha = Math.max(0.1, Math.min(1, parseInt(hex, 16) / 255));
+          i += 4;
+          continue;
+        }
+      }
+      // ^A — alpha reset
+      else if (code === "A") { alpha = null; i += 2; continue; }
+      // ^f# — flash on (digit 0-9 maps to speed 1-10)
+      else if (code === "f") {
+        const digit = input.charCodeAt(i + 2) - 48; // '0'=0 … '9'=9
+        flash = (digit >= 0 && digit <= 9) ? digit + 1 : 5; // default mid-speed for non-digit
+        i += 3;
+        continue;
+      }
+      // ^F — flash off
+      else if (code === "F") { flash = 0; i += 2; continue; }
+      // ^r — reset all
+      else if (code === "r") { color = null; alpha = null; bold = false; italic = false; flash = 0; i += 2; continue; }
+      // ^b / ^B — bold on/off
+      else if (code === "b") { bold   = true;  i += 2; continue; }
+      else if (code === "B") { bold   = false; i += 2; continue; }
+      // ^i / ^I — italic on/off
+      else if (code === "i") { italic = true;  i += 2; continue; }
+      else if (code === "I") { italic = false; i += 2; continue; }
+      // ^o — console override, no visual effect
+      else if (code === "o") { i += 2; continue; }
+      // ^^ — literal caret
+      else if (code === "^") { syncSpans(); out += "^"; i += 2; continue; }
+      // Unrecognized — skip the ^ only
+      else { i += 1; continue; }
+    }
+
+    // Newline
+    if (input[i] === "\n") {
+      closeColor();  // close all spans cleanly across line break
+      out += "<br>";
+      i += 1;
+      continue;
+    }
+
+    // Normal character — sync open spans then emit
+    syncSpans();
+    out += html(input[i]);
+    i += 1;
+  }
+
+  // Close any spans still open at end of string
+  closeColor();
+
+  return out || html(fallback || "");
+}
+
+function mapTitle(value) {
+  if (!value) return "--";
+  const raw = String(value).replace(/\//g, "\\");
+  const last = raw.split("\\").pop().replace(/\.wld$/i, "");
+  return last.replace(/_/g, " ") || "--";
+}
+
+// Look up the friendly map title from the maps cache (which has server-supplied
+// display names like "Valley of the Jaguar"), falling back to mapTitle().
+function resolveMapTitle(sid, rawMapname) {
+  if (!rawMapname) return "--";
+  const basename = String(rawMapname).replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
+  const cached = mapCache[sid] || [];
+  for (const m of cached) {
+    const cacheBase = String(m.map || "").replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
+    if (cacheBase === basename && m.title) return m.title;
+  }
+  return mapTitle(rawMapname);
+}
+
+function num(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function hms(total) {
+  const seconds = Math.max(0, Math.floor(num(total)));
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h) return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+  return m + ":" + String(s).padStart(2, "0");
+}
+
+function activeText(value) {
+  if (value == null || value === "") return "--";
+  if (typeof value === "number") return hms(value);
+  const asNumber = Number(value);
+  if (Number.isFinite(asNumber) && String(value).trim() !== "") return hms(asNumber);
+  return html(value);
+}
+
+function fmtDate(ts) {
+  if (!ts) return "--";
+  const d = new Date(num(ts) * 1000);
+  if (Number.isNaN(d.getTime())) return "--";
+  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" }) +
+    " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+function seenText(ts) {
+  if (!ts) return "never";
+  const diff = Math.max(0, Math.floor(Date.now() / 1000 - num(ts)));
+  if (diff < 60) return diff + "s";
+  if (diff < 3600) return Math.floor(diff / 60) + "m";
+  if (diff < DAY) return Math.floor(diff / 3600) + "h";
+  return Math.floor(diff / DAY) + "d";
+}
+
+function bytes(value) {
+  const size = num(value);
+  if (size >= 1024 * 1024) return (size / 1024 / 1024).toFixed(2) + " MB";
+  if (size >= 1024) return Math.round(size / 1024) + " KB";
+  return size + " B";
+}
+
+function pingTag(ping) {
+  const p = num(ping);
+  const cls = p < 80 ? "good" : p < 170 ? "warn" : "bad";
+  return '<span class="tag ' + cls + '">' + html(p || "--") + "</span>";
+}
+
+function countryText(country) {
+  const value = String(country || "").trim();
+  return value ? html(value) : "--";
+}
+
+async function getJson(path, fallback, required) {
+  const res = await fetch(API + path, { cache: "no-store" });
+  if (!res.ok) {
+    if (required) throw new Error(path + " returned " + res.status);
+    return fallback;
+  }
+  return res.json();
+}
+
+function groupByServer(items) {
+  const grouped = Object.create(null);
+  for (const item of items || []) {
+    const sid = item.server_id || item.server || "";
+    if (!sid) continue;
+    if (!grouped[sid]) grouped[sid] = [];
+    grouped[sid].push(item);
+  }
+  return grouped;
+}
+
+function flattenEvents() {
+  return Object.values(eventsCache || {}).flat();
+}
+
+function combinedActivity() {
+  const points = new Map();
+  for (const series of Object.values(activityCache || {})) {
+    for (const row of series || []) {
+      const ts = num(row[0]);
+      const count = num(row[1]);
+      points.set(ts, (points.get(ts) || 0) + count);
+    }
+  }
+  return Array.from(points.entries()).sort((a, b) => a[0] - b[0]);
+}
+
+function renderOnlinePlayers(servers) {
+  const players = [];
+  for (const server of servers) {
+    for (const player of server.players || []) {
+      players.push({ ...player, server_id: server.id, server_label: server.label || cleanSam(server.hostname) || server.host  });
+    }
+  }
+
+  players.sort((a, b) => num(a.ping, 9999) - num(b.ping, 9999));
+  el.onlineCount.textContent = "(" + players.length + ")";
+  const pings = players.map(p => num(p.ping)).filter(Boolean);
+  el.onlinePing.textContent = pings.length ? "avg ping " + Math.round(pings.reduce((a, b) => a + b, 0) / pings.length) : "";
+
+  if (!players.length) {
+    el.onlineBody.innerHTML = '<tr><td colspan="5" class="empty">No players online</td></tr>';
+    return;
+  }
+
+  el.onlineBody.innerHTML = players.map((p, index) => {
+    const name = cleanSam(p.name) || "Player";
+    return '<tr>' +
+      '<td class="center">' + (index + 1) + '</td>' +
+      '<td><div class="name sam-name" title="' + html(name) + '">' + samText(p.name, name) + '</div></td>' +
+      '<td>' + countryText(p.country) + '</td>' +
+      '<td>' + html(p.server_label) + '</td>' +
+      '<td class="right">' + pingTag(p.ping) + '</td>' +
+      '</tr>';
+  }).join("");
+}
+
+function renderServers(servers) {
+  const totalPlayers = servers.reduce((sum, s) => sum + num(s.numplayers), 0);
+  const totalSlots = servers.reduce((sum, s) => sum + num(s.maxplayers), 0);
+  el.serverCount.textContent = "(" + servers.length + ")";
+  el.serverTotal.textContent = totalPlayers + "/" + totalSlots + " players";
+
+  if (!servers.length) {
+    el.serverBody.innerHTML = '<tr><td colspan="10" class="empty">No configured servers</td></tr>';
+    return;
+  }
+
+  let out = "";
+  for (const server of servers) {
+    const sid = String(server.id);
+    const open = !!expandedServers[sid];
+    const liveName = cleanSam(server.hostname || "");
+    const titleName = liveName && liveName !== server.label ? liveName : "";
+    const max = Math.max(1, num(server.maxplayers, 8));
+    const current = num(server.numplayers);
+    const fill = Math.min(100, Math.round(current / max * 100));
+    const statusClass = server.online ? "on" : "off";
+    const statusTitle = server.online ? "online" : "offline";
+
+    out += '<tr class="server-row ' + (open ? "open" : "") + '" data-row-toggle="' + html(sid) + '">' +
+      '<td class="center"><span class="status-dot ' + statusClass + '" title="' + statusTitle + '"></span></td>' +
+      '<td class="center toggle-cell"><button class="toggle-btn ' + (open ? "open" : "") + '" type="button" data-server-toggle="' + html(sid) + '" title="Toggle details"><span class="chev"></span></button></td>' +
+      '<td><div class="server-name"><b title="' + html(server.host + ":" + server.port) + '">' + samText(server.hostname) + '</b>' /* + (titleName ? '<span class="sam-name" title="' + html(titleName) + '">' + samText(server.label, titleName) + '</span>' : '') */ + '</div></td>' +
+      '<td class="center"><div class="nowrap">' + current + "/" + max + '</div><div class="meter"><span style="width:' + fill + '%"></span></div></td>' +
+      '<td class="center">' + html(num(server.total_players_today)) + '</td>' +
+      '<td title="' + samText(server.mapname || "") + '">' + samText(resolveMapTitle(sid, server.mapname)) + '</td>' +
+      '<td class="center">' + html(num(server.active_maps_count)) + '</td>' +
+      '<td class="center">' + html(num(server.demo_game_count, (demoGameCache[sid] || []).length || server.demo_count)) + '</td>' +
+      '<td class="center">' + html(num(server.crash_count)) + '</td>' +
+      '<td class="nowrap">' + html(seenText(server.queried_at)) + '</td>' +
+      '</tr>' +
+      '<tr class="detail-row ' + (open ? "open" : "") + '" id="detail-' + html(sid) + '">' +
+      '<td class="detail-cell" colspan="10">' + renderServerDetail(server) + '</td>' +
+      '</tr>';
+  }
+
+  el.serverBody.innerHTML = out;
+  bindServerControls();
+  requestAnimationFrame(drawOpenServerGraphs);
+}
+
+function sectionIsOpen(sid, name, defaultOpen) {
+  const key = sid + ":" + name;
+  return Object.prototype.hasOwnProperty.call(sectionState, key) ? sectionState[key] : defaultOpen;
+}
+
+function renderSection(server, name, title, count, defaultOpen, body) {
+  const sid = String(server.id);
+  const open = sectionIsOpen(sid, name, defaultOpen);
+  return '<div class="section ' + (open ? "open" : "") + '">' +
+    '<button class="section-head" type="button" data-section-toggle="' + html(name) + '" data-section-server="' + html(sid) + '">' +
+    '<span class="section-title"><span class="mini-chev"></span><span>' + html(title) + ' <span class="muted">(' + html(count) + ')</span></span></span>' +
+    '</button>' +
+    '<div class="section-body">' + body + '</div>' +
+    '</div>';
+}
+
+// Merge live map stats with the static map list for a server.
+// Static entries that have no live stats show with zero counts.
+// Live entries not in the static list are appended at the end.
+function mergeMapsWithStatic(sid, liveMaps) {
+  const staticList = (STATIC_MAPS[sid] || []).slice();
+  if (!staticList.length) return liveMaps;
+
+  // Index live maps by basename for fast lookup
+  const liveByBase = Object.create(null);
+  for (const m of liveMaps) {
+    const base = String(m.map || "").replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
+    liveByBase[base] = m;
+  }
+
+  const result = [];
+  const seenBase = Object.create(null);
+
+  for (const s of staticList) {
+    const base = String(s.map || "").replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
+    seenBase[base] = true;
+    const live = liveByBase[base];
+    result.push(live
+      ? { ...live, title: s.title || live.title, pack: s.pack || "", pack_url: s.pack_url || "" }  // prefer static title/pack
+      : { map: s.map, title: s.title, pack: s.pack || "", pack_url: s.pack_url || "", players: 0, sessions: 0, playtime: 0, last_seen: null }
+    );
+  }
+
+  // Append any live maps not in the static list
+  for (const m of liveMaps) {
+    const base = String(m.map || "").replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
+    if (!seenBase[base]) result.push(m);
+  }
+
+  return result;
+}
+
+function renderServerDetail(server) {
+  const sid = String(server.id);
+  const players = server.players || [];
+  const liveMaps = mapCache[sid] || [];
+  const maps = mergeMapsWithStatic(sid, liveMaps);
+  const demos = demoGameCache[sid] || [];
+
+  return '<div class="detail-grid">' +
+    renderSection(server, "players", "Active Users", players.length, true, renderPlayersTable(players)) +
+    renderSection(server, "maps", "Active Maps", maps.length, true, renderMapsTable(maps)) +
+    renderSection(server, "demos", "Recorded Demos", demos.length, false, renderDemosTable(server, demos)) +
+    '<div class="section open">' +
+      '<button class="section-head" type="button" tabindex="-1"><span class="section-title"><span class="mini-chev"></span><span>24h Activity</span></span></button>' +
+      '<div class="section-body mini-graph"><div class="graph-box"><canvas id="graph-' + html(sid) + '"></canvas></div></div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderPlayersTable(players) {
+  if (!players.length) return '<div class="empty">No players online</div>';
+  return '<div class="table-scroll"><table class="sub-table"><thead><tr>' +
+    '<th class="w-small center">#</th><th>Player / Observer</th><th class="w-country">Country</th><th class="w-ping right">Ping</th><th class="w-time right">Total</th>' +
+    '</tr></thead><tbody>' +
+    players.map((p, i) => {
+      const name = cleanSam(p.name) || "Player";
+      return '<tr>' +
+        '<td class="center">' + (i + 1) + '</td>' +
+        '<td><div class="name sam-name" title="' + html(name) + '">' + samText(p.name, name) + '</div></td>' +
+        '<td>' + countryText(p.country) + '</td>' +
+        '<td class="right">' + pingTag(p.ping) + '</td>' +
+        '<td class="right">' + (p.total_playtime ? html(hms(p.total_playtime)) : "--") + '</td>' +
+        '</tr>';
+    }).join("") +
+    '</tbody></table></div>';
+}
+
+function renderMapsTable(maps) {
+  if (!maps.length) return '<div class="empty">No recent map records</div>';
+  return '<div class="table-scroll"><table class="sub-table"><thead><tr>' +
+    '<th class="w-small center">#</th><th>Map</th><th class="w-server">MapPack</th><th class="w-small right">Players</th><th class="w-small right">Runs</th><th class="w-active right">Playtime</th><th class="w-time">Last</th>' +
+    '</tr></thead><tbody>' +
+    maps.slice(0, 40).map((m, i) => {
+      const hasStats = num(m.sessions) > 0;
+      const packCell = m.pack
+        ? (m.pack_url
+            ? '<a class="download" href="' + html(m.pack_url) + '" title="Download ' + html(m.pack) + '">' + html(m.pack) + '</a>'
+            : html(m.pack))
+        : '<span class="muted">—</span>';
+      return '<tr' + (hasStats ? '' : ' class="map-unplayed"') + '>' +
+        '<td class="center">' + (i + 1) + '</td>' +
+        '<td title="' + html(m.map || m.title) + '">' + html(m.title || mapTitle(m.map)) + '</td>' +
+        '<td>' + packCell + '</td>' +
+        '<td class="right">' + (hasStats ? html(num(m.players)) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="right">' + (hasStats ? html(num(m.sessions)) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="right">' + (hasStats ? html(hms(m.playtime)) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="nowrap">' + (m.last_seen ? html(fmtDate(m.last_seen)) : '<span class="muted">never</span>') + '</td>' +
+        '</tr>';
+    }).join("") +
+    '</tbody></table></div>';
+}
+
+function renderDemosTable(server, demos) {
+  if (!demos.length) return '<div class="empty">No recorded demos</div>';
+  return '<div class="table-scroll"><table class="sub-table demo-table"><thead><tr>' +
+    '<th class="w-small center">#</th>' +
+    '<th class="w-toggle center"></th>' +
+    '<th>Demo</th>' +
+    '<th class="w-small center">Players</th>' +
+    '<th class="w-duration center">Duration</th>' +
+    '<th class="w-time">Recorded</th>' +
+    '<th class="w-size right">Size</th>' +
+    '<th>Parts</th>' +
+    '</tr></thead><tbody>' +
+    demos.slice(0, 80).map((game, i) => renderDemoGameRows(server, game, i)).join("") +
+    '</tbody></table></div>';
+}
+
+function renderDemoGameRows(server, game, index) {
+  const gameId = String(game.id || (server.id + "-" + game.recorded_at + "-" + index));
+  const open = !!expandedDemoGames[gameId];
+  const parts = game.parts || [];
+  const title = game.title || mapTitle(game.map) || "Recorded game";
+  const sid = encodeURIComponent(server.id);
+
+  // Download-all button: single part → direct .dem, multiple → zip stream
+  const dlAllHref = parts.length === 1
+    ? API + "/api/demos/" + sid + "/" + encodeURIComponent(String(parts[0].filename || ""))
+    : API + "/api/demos/" + sid + "/zip?parts=" + parts.map(p => encodeURIComponent(String(p.filename || ""))).join(",");
+  const dlAllLabel = parts.length > 1 ? "Download zip (" + parts.length + " parts)" : "Download demo";
+  const titleCell = parts.length
+    ? '<div><a class="download demo-dl-all" href="' + html(dlAllHref) + '" onclick="event.stopPropagation()" title="' + html(title) + (parts.length > 1 ? " · " + parts.length + " parts" : "") + '">' + html(dlAllLabel) + '</a></div>'
+    : '<span class="muted">' + html(title) + '</span>';
+
+  // Per-part download links back in the Parts column
+  const partLinks = parts.length
+    ? '<div class="part-link-row">' +
+        parts.map(part => {
+          const file = String(part.filename || "");
+          const href = API + "/api/demos/" + sid + "/" + encodeURIComponent(file);
+          const tip = "Part " + (part.part || "") + " · " + fmtDate(part.recorded_at) + " · " + bytes(part.size_bytes);
+          return '<a class="part-link" href="' + html(href) + '" title="' + html(tip) + '" onclick="event.stopPropagation()">d' + html(part.part || "") + '</a>';
+        }).join("") +
+      '</div>'
+    : '<span class="muted">—</span>';
+
+  return '<tr class="demo-game-row ' + (open ? "open" : "") + '" data-demo-row="' + html(gameId) + '">' +
+      '<td class="center">' + (index + 1) + '</td>' +
+      '<td class="center toggle-cell"><button class="toggle-btn ' + (open ? "open" : "") + '" type="button" data-demo-toggle="' + html(gameId) + '" title="Show players"><span class="chev"></span></button></td>' +
+      '<td title="' + html(game.map || title) + '">' + titleCell + '</td>' +
+      '<td class="right">' + html(num(game.players_count)) + '</td>' +
+      '<td class="right nowrap">' + html(hms(game.duration)) + '</td>' +
+      '<td class="nowrap">' + html(fmtDate(game.recorded_at)) + '</td>' +
+      '<td class="right nowrap">' + html(bytes(game.size_bytes)) + '</td>' +
+      '<td>' + partLinks + '</td>' +
+    '</tr>' +
+    '<tr class="demo-game-detail ' + (open ? "open" : "") + '">' +
+      '<td class="demo-detail-cell" colspan="8">' + renderDemoGameDetail(server, game) + '</td>' +
+    '</tr>';
+}
+
+function renderDemoGameDetail(server, game) {
+  const players = game.players || [];
+  const parts = game.parts || [];
+  if (!players.length) return '<div class="empty">No completed player sessions recorded for this game yet</div>';
+
+  // Build header: part numbers aligned with presence cells
+  const partCount = parts.length || Math.max(...players.map(p => (p.parts || []).length), 1);
+  const presenceHeader = '<div class="presence-header" style="--parts:' + partCount + '">' +
+    Array.from({length: partCount}, (_, i) => '<span class="part-hdr">' + (i + 1) + '</span>').join("") +
+    '</div>';
+
+  return '<table class="sub-table demo-detail-table"><thead><tr>' +
+    '<th class="w-small center">#</th>' +
+    '<th>Player</th>' +
+    '<th class="w-country">Country</th>' +
+    '<th class="w-time">Joined</th>' +
+    '<th class="w-duration right">Time</th>' +
+    '<th><div class="presence-col-head">' + presenceHeader + '</div></th>' +
+    '</tr></thead><tbody>' +
+    players.map((p, i) => {
+      const name = cleanSam(p.name) || "Player";
+      return '<tr>' +
+        '<td class="center">' + (i + 1) + '</td>' +
+        '<td><div class="name sam-name" title="' + html(name) + '">' + samText(p.name, name) + '</div></td>' +
+        '<td>' + countryText(p.country) + '</td>' +
+        '<td class="nowrap">' + html(fmtDate(p.join_time)) + '</td>' +
+        '<td class="right">' + html(hms(p.playtime)) + '</td>' +
+        '<td>' + renderPartPresence(parts, p.parts || [], partCount) + '</td>' +
+      '</tr>';
+    }).join("") +
+    '</tbody></table>';
+}
+
+function renderPartPresence(parts, presence, partCount) {
+  const count = partCount || Math.max(parts.length, presence.length, 1);
+  const cells = [];
+  for (let i = 0; i < count; i += 1) {
+    const part = parts[i] || {};
+    const active = !!presence[i];
+    const tip = "Part " + (i + 1) + (part.recorded_at ? " · " + fmtDate(part.recorded_at) : "");
+    cells.push('<span class="part-cell ' + (active ? "on" : "off") + '" title="' + html(tip) + '"></span>');
+  }
+  return '<div class="part-strip" style="--parts:' + count + '">' + cells.join("") + '</div>';
+}
+
+function bindServerControls() {
+  document.querySelectorAll("[data-row-toggle]").forEach(row => {
+    row.addEventListener("click", () => toggleServer(row.getAttribute("data-row-toggle")));
+  });
+  document.querySelectorAll("[data-server-toggle]").forEach(btn => {
+    btn.addEventListener("click", event => {
+      event.stopPropagation();
+      toggleServer(btn.getAttribute("data-server-toggle"));
+    });
+  });
+  document.querySelectorAll("[data-section-toggle]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const sid = btn.getAttribute("data-section-server");
+      const name = btn.getAttribute("data-section-toggle");
+      const key = sid + ":" + name;
+      const section = btn.closest(".section");
+      sectionState[key] = !(section && section.classList.contains("open"));
+      renderServers(lastServers);
+    });
+  });
+  document.querySelectorAll("[data-demo-row]").forEach(row => {
+    row.addEventListener("click", () => toggleDemoGame(row.getAttribute("data-demo-row")));
+  });
+  document.querySelectorAll("[data-demo-toggle]").forEach(btn => {
+    btn.addEventListener("click", event => {
+      event.stopPropagation();
+      toggleDemoGame(btn.getAttribute("data-demo-toggle"));
+    });
+  });
+}
+
+function toggleServer(sid) {
+  expandedServers[sid] = !expandedServers[sid];
+  renderServers(lastServers);
+}
+
+function toggleDemoGame(gameId) {
+  expandedDemoGames[gameId] = !expandedDemoGames[gameId];
+  renderServers(lastServers);
+}
+
+function drawOpenServerGraphs() {
+  for (const server of lastServers) {
+    const sid = String(server.id);
+    if (!expandedServers[sid]) continue;
+    const canvas = document.getElementById("graph-" + sid);
+    if (canvas) drawGraph(canvas, activityCache[sid] || [], eventsCache[sid] || [], 64);
+  }
+}
+
+function drawGraph(canvas, series, events, height) {
+  if (!canvas) return;
+  const parent = canvas.parentElement || canvas;
+  const cssW = Math.max(260, parent.clientWidth - 8);
+  const cssH = height || 96;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+  canvas.style.height = cssH + "px";
+  canvas.style.width = cssW + "px";
+
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  const pad = { left: 30, right: 8, top: 7, bottom: 18 };
+  const gw = cssW - pad.left - pad.right;
+  const gh = cssH - pad.top - pad.bottom;
+  const now = Date.now() / 1000;
+  const minT = now - DAY;
+  const maxCount = Math.max(1, ...((series || []).map(p => num(p[1]))));
+
+  ctx.strokeStyle = "#d9e3de";
+  ctx.lineWidth = 1;
+  ctx.font = "9px Arial, sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#6c7b78";
+
+  [0, 0.5, 1].forEach(mark => {
+    const y = pad.top + gh * (1 - mark);
+    ctx.beginPath();
+    ctx.moveTo(pad.left, y);
+    ctx.lineTo(pad.left + gw, y);
+    ctx.stroke();
+    ctx.fillText(String(Math.round(maxCount * mark)), pad.left - 3, y + 3);
+  });
+
+  for (const ev of events || []) {
+    const ts = num(ev.ts);
+    if (ts < minT || ts > now) continue;
+    const x = pad.left + ((ts - minT) / DAY) * gw;
+    ctx.strokeStyle = ev.type === "crash" ? "#b23b3b" : "#a96800";
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath();
+    ctx.moveTo(x, pad.top);
+    ctx.lineTo(x, pad.top + gh);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  if ((series || []).length) {
+    const sorted = series.slice().sort((a, b) => num(a[0]) - num(b[0]));
+    const bucket = sorted.length > 1 ? Math.max(2, ((num(sorted[1][0]) - num(sorted[0][0])) / DAY) * gw - 1) : 5;
+    ctx.fillStyle = "#2f6690";
+    for (const point of sorted) {
+      const ts = num(point[0]);
+      const count = num(point[1]);
+      if (ts < minT || ts > now) continue;
+      const x = pad.left + ((ts - minT) / DAY) * gw;
+      const h = Math.max(count ? 2 : 0, (count / maxCount) * gh);
+      ctx.fillRect(x, pad.top + gh - h, bucket, h);
+    }
+  } else {
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#7a8784";
+    ctx.fillText("No samples", pad.left + gw / 2, pad.top + gh / 2);
+  }
+
+  ctx.strokeStyle = "#9dafaa";
+  ctx.beginPath();
+  ctx.moveTo(pad.left, pad.top);
+  ctx.lineTo(pad.left, pad.top + gh);
+  ctx.lineTo(pad.left + gw, pad.top + gh);
+  ctx.stroke();
+
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#6c7b78";
+  for (let h = 0; h <= 24; h += 6) {
+    const x = pad.left + (h / 24) * gw;
+    const date = new Date((minT + h * 3600) * 1000);
+    ctx.fillText(String(date.getHours()).padStart(2, "0") + ":00", x, pad.top + gh + 13);
+  }
+}
+
+async function refresh() {
+  el.stamp.textContent = "Refreshing...";
+  try {
+    const since = Math.floor(Date.now() / 1000) - DAY;
+    const [servers, activity, events, demoGames, maps] = await Promise.all([
+      getJson("/api/servers", [], true),
+      getJson("/api/activity", {}, false),
+      getJson("/api/events", {}, false),
+      getJson("/api/demo-games?limit=500", [], false),
+      getJson("/api/maps?since=" + since + "&limit=500", [], false)
+    ]);
+
+    lastServers = Array.isArray(servers) ? servers : [];
+    activityCache = activity || {};
+    eventsCache = events || {};
+    demoGameCache = groupByServer(demoGames || []);
+    mapCache = groupByServer(maps || []);
+
+    renderOnlinePlayers(lastServers);
+    renderServers(lastServers);
+    drawGraph(el.activityCanvas, combinedActivity(), flattenEvents(), 96);
+    el.stamp.textContent = "Updated " + new Date().toLocaleTimeString("en-GB");
+  } catch (error) {
+    el.stamp.innerHTML = '<span class="err">' + html(error.message || error) + '</span>';
+  }
+}
+
+function setAutoRefresh(enabled) {
+  autoRefresh = enabled;
+  el.autoBtn.classList.toggle("active", autoRefresh);
+  el.autoBtn.textContent = autoRefresh ? "Auto" : "Paused";
+  if (refreshTimer) clearInterval(refreshTimer);
+  refreshTimer = autoRefresh ? setInterval(refresh, REFRESH_MS) : null;
+}
+
+el.refreshBtn.addEventListener("click", refresh);
+el.autoBtn.addEventListener("click", () => setAutoRefresh(!autoRefresh));
+window.addEventListener("resize", () => {
+  drawGraph(el.activityCanvas, combinedActivity(), flattenEvents(), 96);
+  drawOpenServerGraphs();
+});
+
+setAutoRefresh(true);
+refresh();
+</script>
+</body>
+</html>
