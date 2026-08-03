@@ -7,11 +7,11 @@ Server configs and web dashboard for running **Serious Sam Classic: The First En
 
 ## Contents
 
-- `TFE105/Scripts/Dedicated/RocketJump` — dedicated server config (`init.ini`, per-round
+- `TFE105/Scripts/Dedicated/RocketJump` - dedicated server config (`init.ini`, per-round
   `N_begin.ini`/`N_end.ini` scripts). `init_source.ini` is the original config prior to
   encoding Cyrillic strings for in-game readability.
-- `TSE107/Mods/ClassicsPatchMod` — mod shell used for the TSE 1.07 build.
-- `Dashboard/` — Flask + single-page-HTML web dashboard for monitoring and moderating the
+- `TSE107/Mods/ClassicsPatchMod` - mod shell used for the TSE 1.07 build.
+- `Dashboard/` - Flask + single-page-HTML web dashboard for monitoring and moderating the
   running servers.
 
 ## What the fork adds
@@ -19,24 +19,24 @@ Server configs and web dashboard for running **Serious Sam Classic: The First En
 The dedicated server binary these configs run on is a modified build of Classics Patch. On top
 of the full upstream feature set, it adds:
 
-- **PlayerDB** — SQLite player database keyed by GUID: session history (map/frags/deaths/score),
+- **PlayerDB** - SQLite player database keyed by GUID: session history (map/frags/deaths/score),
   ban storage with custom reasons, a remote admin command queue (kick/mute/unmute issued from
   the dashboard and picked up server-side once a second), and per-player language/announcement
   preferences.
-- **GeoIP** — asynchronous IP geolocation with in-game `@locate`/`@ping` lookups, non-blocking
+- **GeoIP** - asynchronous IP geolocation with in-game `@locate`/`@ping` lookups, non-blocking
   and cache-backed.
-- **DemoManager** — shell-driven `.dem` recording (`StartDemoRec`/`StopDemoRec`) with an
+- **DemoManager** - shell-driven `.dem` recording (`StartDemoRec`/`StopDemoRec`) with an
   auto-rotating recording pattern for continuous coverage.
-- **PlayersBrowse** — `@browse` chat command that lists other public FE/SE servers via
+- **PlayersBrowse** - `@players` chat command that lists other public FE/SE servers via
   333networks, without leaving the game.
-- **ScriptScheduler** — a delayed-execution queue (`ScheduleScript`) used to build timers and
+- **ScriptScheduler** - a delayed-execution queue (`ScheduleScript`) used to build timers and
   self-rescheduling behavior straight from `init.ini`.
-- **Tracking (RJT, work in progress)** — server-side rocket-jump tracking and scoring: net
+- **Tracking (RJT, work in progress)** - server-side rocket-jump tracking and scoring: net
   height gained, apex height, peak vertical velocity, hit-angle accuracy, and in-chat
   announcements for qualifying jumps.
-- **Multilingual chat & voting** — EN/RU chat routed per recipient by stored language
+- **Multilingual chat & voting** - EN/RU chat routed per recipient by stored language
   preference, plus chat-driven map voting and player kick/ban voting.
-- **ServerUtilities sandbox tools** — bulk entity cleanup/inspection and batch property edits
+- **ServerUtilities sandbox tools** - bulk entity cleanup/inspection and batch property edits
   for level setup (mover activation modes, coop-marker handling, entity property read/write).
 
 See the [fork's README](https://github.com/Vilkro/SuperProject) for the full breakdown of each
@@ -51,12 +51,12 @@ from a browser. See `Dashboard/SSCP_README.md` for setup.
 ## Acknowledgments
 
 - **[DreamyCecil's Classics Patch](https://github.com/SamClassicPatch/SuperProject)** is the
-  foundation all of this runs on — carefully engineered, actively maintained, and the standard
+  foundation all of this runs on - carefully engineered, actively maintained, and the standard
   for Serious Sam Classic server/client modding. This project is a much smaller, less rigorous
   layer built on top of that work.
 - Several ideas here (player database, moderation tooling, multilingual chat, voting) were
   inspired by the long-running **42amsterdam** servers run by **Ostap**, which have been online
-  for over a decade with excellent server code. I don't have access to that codebase — these
+  for over a decade with excellent server code. I don't have access to that codebase - these
   features were reimplemented independently by observing how they behave from a player's
   perspective, not by copying source.
 - I have only basic coding skills myself; most of the implementation was written with the help
