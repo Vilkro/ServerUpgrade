@@ -3,134 +3,254 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Hyper Server</title>
+<title>Serious Sam Servers</title>
 <link rel="icon" href="Manface.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root {
+:root, :root[data-theme="light"] {
   color-scheme: light;
-  --page: #e8e8e8;
-  --panel: #ffffff;
-  --panel-alt: #f4f4f4;
-  --line: #b0b8b5;
-  --line-dark: #8a9693;
-  --head: #29383d;
-  --head-2: #40545a;
-  --text: #182224;
-  --muted: #657471;
-  --blue: #2f6690;
-  --green: #2f7d53;
-  --amber: #a96800;
-  --red: #b23b3b;
-  --shadow: rgba(32, 45, 48, 0.10);
+  /* ── core palette (light, default — legible for a wide audience) ── */
+  --void:        #f3f0e6;
+  --panel:       #ffffff;
+  --panel-raised:#ece6d4;
+  --panel-hover: #e2d9bb;
+  --line:        #cdc5ab;
+  --line-bright: #8f8158;
+  --paper:       #201d14;
+  --muted:       #5c5748;
+  --amber:       #8a5a06;
+  --amber-fill:  #f2dfb0;
+  --amber-dim:   #e9d19d;
+  --amber-ink:   #2a1c04;
+  --amber-glow:  transparent;
+  --amber-wash:  transparent;
+  --alert:       #9c2e26;
+  --alert-fill:  #f6dcd8;
+  --alert-dim:   #f0c9c3;
+  --ok:          #276b36;
+  --ok-fill:     #dcf0df;
+  --ok-dim:      #c9e6cd;
+  --shadow:      rgba(30,25,10,0.14);
+  --text-glow:   0 0 2px rgba(0,0,0,0.4);
+  --table-font:  'Arial Greek', Arial, sans-serif;
+  --table-text-shadow: 1px 1px 1.5px #646363;
+  --dot-glow:    none;
+
+  --f-display: 'Oswald', 'Arial Narrow', sans-serif;
+  --f-mono:    'JetBrains Mono', 'Consolas', monospace;
+  --f-body:    'Inter', Arial, sans-serif;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  /* ── core palette (dark / "night view") ── */
+  --void:        #14181a;
+  --panel:       #1b2023;
+  --panel-raised:#232a2d;
+  --panel-hover: #2b3336;
+  --line:        #333c40;
+  --line-bright: #708087;
+  --paper:       #eae5d4;
+  --muted:       #9aa19c;
+  --amber:       #e8a020;
+  --amber-fill:  #3a2c10;
+  --amber-dim:   #6b4d18;
+  --amber-ink:   #f0c878;
+  --amber-glow:  rgba(232,160,32,0.35);
+  --amber-wash:  rgba(232,160,32,0.06);
+  --alert:       #e2685e;
+  --alert-fill:  #2c1917;
+  --alert-dim:   #3a2220;
+  --ok:          #6cbf72;
+  --ok-fill:     #1c2f20;
+  --ok-dim:      #1c2f20;
+  --shadow:      rgba(0,0,0,0.45);
+  --text-glow:   0 0 2px rgba(0,0,0,0.55);
+  --table-font:  'Arial Greek', Arial, sans-serif;
+  --table-text-shadow: 1px 1px 1.5px rgba(255,255,255,0.5);
+  --dot-glow:    0 0 5px currentColor;
 }
 
 * { box-sizing: border-box; }
-
-html, body {
-  min-height: 100%;
-}
+html, body { min-height: 100%; }
 
 body {
   margin: 0;
-  background: var(--page);
-  /* background-image: url('bg.jpg'); background-size: cover; background-attachment: fixed; */
-  color: var(--text);
-  font-family: Arial, sans-serif;
-  font-size: 13px;
-  line-height: 1.4;
+  background: var(--void);
+  background-image:
+    radial-gradient(ellipse 900px 500px at 15% -10%, var(--amber-wash), transparent 60%);
+  color: var(--paper);
+  font-family: var(--f-body);
+  font-size: 14.5px;
+  line-height: 1.45;
+  transition: background-color 0.15s, color 0.15s;
 }
 
-button, input, select {
-  font: inherit;
+button, input, select { font: inherit; }
+button { min-height: 24px; }
+
+a { color: var(--amber); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+::selection { background: var(--amber-dim); color: var(--paper); }
+
+/* ── focus visibility (accessibility floor) ── */
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
 }
 
-button {
-  min-height: 24px;
-}
-
-a {
-  color: #164f7a;
-  text-decoration: none;
-}
-
-a:hover {
-  text-decoration: underline;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 
 .page {
-  width: min(1180px, calc(100vw - 20px));
+  width: min(1240px, calc(100vw - 20px));
   margin: 0 auto;
-  padding: 10px 0 18px;
+  padding: 0 0 28px;
 }
 
-.topbar {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  align-items: end;
-  margin: 0 0 8px;
+/* ═══════════════════ site header ═══════════════════ */
+.site-header {
+  background: linear-gradient(180deg, var(--panel-raised) 0%, var(--void) 100%);
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(232,160,32,0.5);
+  margin-bottom: 16px;
 }
 
-.brand {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 0;
-}
-
-.brand h1 {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.1;
-  letter-spacing: 0;
-}
-
-.brand .sub {
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.toolbar {
+.site-header-inner {
+  width: min(1240px, calc(100vw - 24px));
+  margin: 0 auto;
   display: flex;
   align-items: center;
-  gap: 6px;
-  justify-content: flex-end;
-  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 14px;
+  min-height: 68px;
 }
+
+.site-logo { display: flex; align-items: center; gap: 12px; min-width: 0; text-decoration: none; }
+.site-logo-icon { flex: 0 0 40px; width: 40px; height: 40px; max-height: 44px; object-fit: contain; }
+
+.site-logo-title {
+  font-family: var(--f-display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--paper);
+  line-height: 1.1;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.site-logo-sub {
+  font-family: var(--f-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.site-header-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
 .tool-btn {
-  border: 1px solid var(--line-dark);
-  background: #f5f5f5;
-  color: var(--text);
-  padding: 2px 8px;
-  border-radius: 4px;
+  border: 1px solid var(--line-bright);
+  background: var(--panel-raised);
+  color: var(--paper);
+  padding: 5px 12px;
+  border-radius: 3px;
   cursor: pointer;
+  font-family: var(--f-display);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  transition: background 0.12s, border-color 0.12s;
 }
 
-.tool-btn:hover {
-  background: #ebebeb;
-}
+.tool-btn:hover { background: var(--panel-hover); border-color: var(--muted); }
 
 .tool-btn.active {
-  background: #dde8e2;
-  border-color: #5f9473;
-  color: #164b2e;
+  background: var(--amber-dim);
+  border-color: var(--amber);
+  color: var(--amber);
 }
 
 .stamp {
   color: var(--muted);
+  font-family: var(--f-mono);
   font-size: 11px;
   white-space: nowrap;
 }
 
+.err { color: var(--alert); }
+
+/* ═══════════════════ HUD stat strip ═══════════════════ */
+.hud-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  background: var(--panel-raised);
+  border-bottom: 1px solid var(--line);
+  overflow-x: auto;
+}
+
+.hud-stat {
+  flex: 1 1 0;
+  min-width: 118px;
+  padding: 10px 16px 9px;
+  position: relative;
+  border-right: 1px solid var(--line);
+}
+
+.hud-stat:last-child { border-right: none; }
+
+.hud-stat::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 2px; height: 14px;
+  background: var(--amber);
+  opacity: 0.7;
+}
+
+.hud-stat-value {
+  font-family: var(--f-mono);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--paper);
+  line-height: 1.05;
+  letter-spacing: -0.5px;
+}
+
+.hud-stat-value .of {
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.hud-stat-value.state-ok { color: var(--ok); }
+.hud-stat-value.state-alert { color: var(--alert); }
+
+.hud-stat-label {
+  font-family: var(--f-display);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+/* ═══════════════════ panels (corner-bracket frame) ═══════════════════ */
 .panel {
+  position: relative;
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow: 0 1px 2px var(--shadow);
-  margin-left: 10%;
-  margin-right: 10%;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .panel-head {
@@ -138,147 +258,125 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 28px;
-  background: var(--head);
-  color: #fff;
-  padding: 4px 7px;
-  font-weight: bold;
+  min-height: 34px;
+  background: var(--panel-raised);
+  color: var(--paper);
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--line);
+  font-family: var(--f-display);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
 }
+
+.panel-head-right { display: flex; align-items: center; gap: 10px; }
 
 .panel-head .count {
-  color: #dce9e3;
-  font-weight: normal;
+  color: var(--muted);
+  font-weight: 400;
+  font-family: var(--f-mono);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
 }
 
-.panel-body {
-  padding: 0;
-}
+.panel-body { padding: 0; }
+.table-scroll { width: 100%; overflow-x: auto; }
 
-.table-scroll {
-  width: 100%;
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
+table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 
 th, td {
-  padding: 5px 8px;
-  border-bottom: 1px solid #b0c0ba;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
   vertical-align: middle;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* Every actual piece of information in a table (names, maps, counts, dates,
+   addresses - everything except header labels) uses this font + shadow,
+   uniformly, regardless of what's rendering it (samText output, plain
+   numbers, whatever). Scoped to td so header labels keep their distinct
+   Oswald look. */
+td {
+  font-family: var(--table-font);
+}
+
 th {
-  background: var(--head-2);
-  color: #fff;
-  font-weight: bold;
+  background: var(--panel-raised);
+  color: var(--muted);
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 10.5px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
   white-space: nowrap;
   text-align: left;
 }
 
-tbody tr:nth-child(even) {
-  background: var(--panel-alt);
-}
+tbody tr { transition: background 0.1s; }
+tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
+tbody tr:hover { background: rgba(232,160,32,0.06); }
 
-tbody tr:hover {
-  background: #eaeaea;
-}
+.num, .right { text-align: right; }
+.center { text-align: center; }
+.muted { color: var(--muted); }
+.nowrap { white-space: nowrap; }
+.name { font-weight: normal; min-width: 0; }
+.mono { font-family: var(--table-font); }
 
-.num, .right {
-  text-align: right;
-}
+.sam-bold { font-weight: 700; }
+.sam-italic { font-style: italic; }
 
-.center {
-  text-align: center;
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.nowrap {
-  white-space: nowrap;
-}
-
-.name {
-  font-weight: normal;
-  min-width: 0;
-}
-
-.sam-bold {
-  font-weight: 700;
-}
-
-.sam-italic {
-  font-style: italic;
-}
-
-/* ^f# flash effect: sin-wave alpha animation matching the engine's behavior.
-   Speed digit 0 = slowest (2.4s), digit 9 = fastest (0.2s). */
 @keyframes sam-flash {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.15; }
 }
 
-/* sam-name: plain Arial with the same 1px shadow the engine renders */
 .sam-name {
   font-weight: normal;
-  text-shadow: 1px 1px 1px #646363;
 }
 
-.server-name {
-  display: flex;
-  gap: 6px;
-  align-items: baseline;
-  min-width: 0;
-}
+/* Serious Sam text can be colored to anything via ^c codes - white, pale
+   yellow, cyan, etc. The engine always renders console/HUD text with a dark
+   outline for exactly this reason: it has to stay legible no matter what
+   color a player picked or what's behind it. Baked into samText() itself
+   (see .sam-outline below) rather than left to each caller to remember. */
+/* A single soft glow instead of a hard 4-way outline - enough to keep a pale
+   player-chosen color from disappearing into the panel background, without
+   turning ordinary dark text into a smudged double-exposure. Color and
+   strength come from theme tokens since "what needs an outline" flips
+   between light and dark panels. */
+/* Shadow now comes from the parent td (see the `td` rule and
+   --table-text-shadow) so every table cell gets the same treatment
+   consistently, whether it's samText output or plain text. This class is
+   kept as a hook in case that ever needs to diverge again. */
+.sam-outline { text-shadow: var(--table-text-shadow); }
 
-.server-name b,
-.server-name span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.server-name span {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: normal;
-}
+.server-name { display: flex; gap: 6px; align-items: baseline; min-width: 0; }
+.server-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+// .server-name-prefix { color: var(--amber); font-weight: 600; }
 
 .status-dot {
   display: inline-block;
-  width: 9px;
-  height: 9px;
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   border: 1px solid currentColor;
-  vertical-align: middle;
 }
+.server-name .status-dot { align-self: center; margin-right: 2px; }
+.status-dot.on { background: var(--ok); color: var(--ok); box-shadow: var(--dot-glow); }
+.status-dot.off { background: transparent; color: var(--alert); }
 
-.status-dot.on {
-  background: var(--green);
-  color: var(--green);
-}
-
-.status-dot.off {
-  background: transparent;
-  color: var(--red);
-}
-
-.toggle-cell {
-  width: 24px;
-}
+.toggle-cell { width: 26px; }
 
 .toggle-btn {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 3px;
   background: transparent;
   cursor: pointer;
   padding: 0;
@@ -286,515 +384,304 @@ tbody tr:hover {
   place-items: center;
 }
 
-.toggle-btn:hover {
-  border-color: var(--line-dark);
-  background: #efefef;
-}
+.toggle-btn:hover { border-color: var(--line-bright); background: var(--panel-raised); }
 
 .chev {
-  width: 0;
-  height: 0;
+  width: 0; height: 0;
   border-top: 5px solid transparent;
   border-bottom: 5px solid transparent;
-  border-left: 7px solid #42545a;
+  border-left: 7px solid var(--muted);
   transition: transform 0.12s ease;
 }
 
-.toggle-btn.open .chev {
-  transform: rotate(90deg);
-}
+.toggle-btn.open .chev { transform: rotate(90deg); border-left-color: var(--amber); }
 
-.server-row {
-  cursor: pointer;
-}
+.server-row { cursor: pointer; }
+.server-row.open { background: rgba(232,160,32,0.09); }
+.server-row.open:hover { background: rgba(232,160,32,0.13); }
 
-.server-row.open {
-  background: #d8d8d8;
-}
+.detail-row { display: none; background: var(--void); }
+.detail-row.open { display: table-row; }
+.detail-cell { padding: 0; border-bottom: 1px solid var(--line-bright); }
 
-.server-row.open:hover {
-  background: #d2d2d2;
-}
+.detail-grid { display: grid; gap: 8px; padding: 10px 12px 12px 34px; }
 
-.detail-row {
-  display: none;
-  background: #ffffff;
-}
-
-.detail-row.open {
-  display: table-row;
-}
-
-.detail-cell {
-  padding: 0;
-  border-bottom: 1px solid var(--line-dark);
-}
-
-.detail-grid {
-  display: grid;
-  gap: 8px;
-  padding: 8px 10px 10px 36px;
-}
-
-.section {
-  border: 1px solid #c0c8c5;
-  background: #fff;
-}
+.section { border: 1px solid var(--line); background: var(--panel); }
 
 .section-head {
   width: 100%;
-  min-height: 25px;
+  min-height: 27px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   border: 0;
-  border-bottom: 1px solid #c0c8c5;
+  border-bottom: 1px solid var(--line);
   border-radius: 0;
-  background: #d8d8d8;
-  padding: 4px 7px;
+  background: var(--panel-raised);
+  color: var(--paper);
+  padding: 5px 9px;
   cursor: pointer;
   text-align: left;
-  font-weight: bold;
+  font-family: var(--f-display);
+  font-weight: 500;
+  font-size: 11.5px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
-.section-head:hover {
-  background: #dadada;
-}
-
-.section-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.section-body {
-  display: none;
-}
-
-.section.open .section-body {
-  display: block;
-}
+.section-head:hover { background: var(--panel-hover); }
+.section-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.section-body { display: none; }
+.section.open .section-body { display: block; }
 
 .mini-chev {
-  width: 0;
-  height: 0;
+  width: 0; height: 0;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  border-left: 6px solid #42545a;
+  border-left: 6px solid var(--muted);
   flex: 0 0 auto;
 }
 
-.section.open .mini-chev {
-  transform: rotate(90deg);
-}
+.section.open .mini-chev { transform: rotate(90deg); border-left-color: var(--amber); }
 
 .empty {
-  padding: 8px;
+  padding: 16px;
   color: var(--muted);
+  font-family: var(--f-mono);
+  font-size: 12px;
+  text-align: center;
 }
 
 .tag {
   display: inline-block;
-  min-width: 24px;
-  padding: 1px 5px;
-  // border: 1px solid #c5d0cb;
-  // background: #f5f8f6;
-  border-radius: 4px;
-  color: #40504d;
-  text-align: center;
   white-space: nowrap;
+  font-family: var(--table-font);
 }
 
-.tag.good {
-  // border-color: #93b99e;
-  // background: #e2f1e6;
-  color: #22603b;
-}
-
-.tag.warn {
-  // border-color: #d5ba7b;
-  // background: #f4ecd8;
-  color: #7b4d00;
-}
-
-.tag.bad {
-  // border-color: #d49b9b;
-  // background: #f5e3e3;
-  color: #8b2929;
-}
+.tag.good { color: var(--ok); }
+.tag.warn { color: var(--amber-ink); }
+.tag.bad  { color: var(--alert); }
 
 .meter {
   width: 100%;
-  height: 8px;
-  border: 1px solid #b8c5bf;
-  background: #eef2ef;
+  height: 6px;
+  border: 1px solid var(--line-bright);
+  background: var(--void);
   overflow: hidden;
 }
 
-.meter span {
-  display: block;
-  height: 100%;
-  background: var(--green);
-}
+.meter span { display: block; height: 100%; background: var(--amber); }
 
 .download {
   display: inline-block;
-  border: 1px solid #42677c;
-  background: #eaf2f6;
-  color: #183d51;
-  border-radius: 4px;
-  padding: 1px 7px;
+  border: 1px solid var(--line-bright);
+  background: var(--amber-fill);
+  color: var(--amber-ink);
+  border-radius: 3px;
+  padding: 1px 8px;
   min-width: 72px;
   text-align: center;
+  font-family: var(--f-mono);
+  font-size: 11px;
 }
 
-.download:hover {
-  background: #dbeaf1;
-  text-decoration: none;
-}
+.download:hover { background: var(--amber-dim); text-decoration: none; }
 
-.demo-dl-all {
-  font-weight: bold;
-  color: var(--text);
-  text-decoration: none;
-}
+.pack-cell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pack-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 0 1 auto; font-family: var(--table-font); }
+.pack-cell .download { flex: 0 0 auto; font-weight: 600; color: var(--paper); text-decoration: none; font-family: var(--f-mono); }
 
-.demo-dl-all:hover {
-  color: var(--blue);
-  text-decoration: underline;
-}
+.demo-dl-all { font-weight: 600; color: var(--paper); text-decoration: none; font-family: var(--f-mono); }
+// .demo-dl-all:hover { color: var(--amber); text-decoration: underline; }
 
-.demo-game-row {
-  cursor: pointer;
-}
+.demo-game-row { cursor: pointer; }
+.demo-game-row.open { background: rgba(232,160,32,0.09); }
+.demo-game-detail { display: none; background: var(--void); }
+.demo-game-detail.open { display: table-row; }
+.demo-detail-cell { padding: 0; }
 
+.part-link-row { display: flex; flex-wrap: wrap; gap: 3px; align-items: center; padding: 1px 0; }
 
-.demo-game-row.open {
-  background: #d8d8d8;
-}
-
-.demo-game-detail {
-  display: none;
-  background: #ffffff;
-}
-
-.demo-game-detail.open {
-  display: table-row;
-}
-
-.demo-detail-cell {
-  padding: 0;
-}
-
-/* Part download links in main row */
-.part-link-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  align-items: center;
-  padding: 1px 0;
-}
-
-/* Parts download strip inside demo detail expand */
 .parts-dl-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  align-items: center;
-  padding: 6px 8px;
-  background: #f0f0f0;
-  border-bottom: 1px solid #b0b8b5;
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  padding: 6px 8px; background: var(--panel-raised); border-bottom: 1px solid var(--line);
 }
 
-.parts-dl-label {
-  color: var(--muted);
-  font-size: 11px;
-  margin-right: 2px;
-}
+.parts-dl-label { color: var(--muted); font-size: 11px; margin-right: 2px; }
 
-.part-dl-btn {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 20px;
-  border: 1px solid #42677c;
-  background: #eaf2f6;
-  color: #183d51;
-  border-radius: 3px;
-  font-size: 11px;
-  white-space: nowrap;
-  text-decoration: none;
+.part-dl-btn, .part-link {
+  display: inline-grid; place-items: center;
+  border: 1px solid var(--line-bright); background: var(--amber-fill); color: var(--amber-ink);
+  border-radius: 3px; font-family: var(--f-mono); font-size: 10px; white-space: nowrap; text-decoration: none;
 }
+.part-dl-btn { width: 32px; height: 20px; font-size: 11px; }
+.part-link { min-width: 20px; height: 16px; }
+.part-dl-btn:hover, .part-link:hover { background: var(--amber-dim); text-decoration: none; }
 
-.part-dl-btn:hover {
-  background: #dbeaf1;
-  text-decoration: none;
-}
+.part-strip { display: flex; flex-wrap: nowrap; gap: 2px; overflow-x: auto; max-width: 340px; }
+.part-cell { flex: 0 0 12px; height: 14px; border: 1px solid var(--line-bright); background: var(--void); }
+.part-cell.on { border-color: var(--ok); background: var(--ok); }
+.part-cell.off { border-color: var(--line); background: var(--panel-raised); }
 
-.part-link {
-  display: inline-grid;
-  place-items: center;
-  min-width: 20px;
-  height: 16px;
-  border: 1px solid #42677c;
-  background: #eaf2f6;
-  color: #183d51;
-  border-radius: 3px;
-  font-size: 10px;
-  white-space: nowrap;
-}
+.presence-col-head { padding-bottom: 0; }
+.presence-header { display: flex; flex-wrap: nowrap; gap: 2px; overflow-x: hidden; max-width: 340px; }
+.part-hdr { flex: 0 0 12px; font-size: 9px; text-align: center; color: var(--muted); overflow: hidden; line-height: 1; font-family: var(--f-mono); }
 
-.part-link:hover {
-  background: #dbeaf1;
-  text-decoration: none;
-}
+.graph-box { border: 1px solid var(--line); background: var(--panel); padding: 4px; margin: 10px 10px 0; }
+canvas { display: block; width: 100%; height: 96px; }
+.mini-graph canvas { height: 64px; }
 
-/* Presence grid: fixed-width cells so many-part sessions don't sprawl */
-.part-strip {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 2px;
-  overflow-x: auto;
-  max-width: 340px;
-}
-
-.part-cell {
-  flex: 0 0 12px;
-  height: 14px;
-  border: 1px solid #c0c8c5;
-  background: #efefef;
-}
-
-.part-cell.on {
-  border-color: #4c8a61;
-  background: #58a06d;
-}
-
-.part-cell.off {
-  border-color: #d0d4d3;
-  background: #f5f5f5;
-}
-
-/* Part number header above presence cells in detail table */
-.presence-col-head {
-  padding-bottom: 0;
-}
-
-.presence-header {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 2px;
-  overflow-x: hidden;
-  max-width: 340px;
-}
-
-.part-hdr {
-  flex: 0 0 12px;
-  font-size: 9px;
-  text-align: center;
-  color: var(--muted);
-  overflow: hidden;
-  line-height: 1;
-}
-
-.graph-box {
-  border: 1px solid #c0c8c5;
-  background: #fff;
-  padding: 4px;
-}
-
-canvas {
-  display: block;
-  width: 100%;
-  height: 96px;
-}
-
-.mini-graph canvas {
-  height: 64px;
-}
-
-.legend {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 5px 7px 7px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.legend i {
-  display: inline-block;
-  width: 14px;
-  height: 7px;
-  margin-right: 4px;
-  vertical-align: middle;
-}
-
-.lg-players { background: var(--blue); }
+.legend { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 6px 10px 8px; color: var(--muted); font-size: 11px; font-family: var(--f-mono); }
+.legend i { display: inline-block; width: 12px; height: 6px; margin-right: 5px; vertical-align: middle; }
+.lg-players { background: var(--amber); }
 .lg-map { background: var(--amber); }
-.lg-offline { background: var(--red); }
+.lg-offline { background: var(--alert); }
 
-.map-unplayed td {
-  color: var(--muted);
-}
-
-.map-unplayed td:nth-child(2) {
-  color: var(--text);
-}
-
-.err {
-  color: var(--red);
-}
-
+.map-unplayed td { color: var(--muted); }
+.map-unplayed td:nth-child(2) { color: var(--paper); }
 
 .online-table { min-width: 620px; }
-.server-table { min-width: 920px; }
+.server-table { min-width: 1224px; }
 .sub-table { min-width: 760px; }
 .demo-table { min-width: 820px; }
 .demo-detail-table { min-width: 700px; }
+.browse-table { min-width: 860px; }
 
-/* Sub-table headers inside expanded sections — lighter than main panel headers */
-.detail-grid .sub-table th,
-.demo-detail-cell .sub-table th {
-  background: #90A3AD;
-}
+.detail-grid .sub-table th, .demo-detail-cell .sub-table th { background: var(--panel-hover); }
 
-.w-status { width: 24px; }
-.w-toggle { width: 28px; }
+.w-toggle { width: 30px; }
 .w-p { width: 92px; }
-.w-small { width: 56px; }
-.w-map { width: 610px; }
-.w-time { width: 92px; }
-.w-size { width: 82px; }
-.w-country { width: 316px; }
-.w-ping { width: 112px; }
+.w-small { width: 62px; }
+.w-map { width: 440px; }
+.w-time { width: 220px; }
+.w-size { width: 162px; }
+.w-country { width: 300px; }
+.w-ping { width: 100px; }
 .w-active { width: 90px; }
-.w-server { width: 450px; }
+.w-server { width: 300px; }
 .w-action { width: 88px; }
 .w-duration { width: 82px; }
+.w-game { width: 46px; }
+.w-addr { width: 170px; }
+.w-server-name { width: 400px; }
 
-/* ── Site header ─────────────────────────────────────────────────────────── */
-.site-header {
-  background: var(--head);
-  border-bottom: 3px solid #e8a020;
+.mode-switch-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 10px;
-  padding: 0 12px;
-}
-
-.site-header-inner {
-  width: min(1180px, calc(100vw - 24px));
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 64px;
-}
-
-.site-logo {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-  text-decoration: none;
-}
-
-.site-logo-icon {
-  flex: 0 0 44px;
-  width: 44px;
-  height: 44px;
-}
-
-.site-logo-text {
-  min-width: 0;
-}
-
-.site-logo-title {
-  font-family: Arial, sans-serif;
-  font-size: 22px;
-  font-weight: bold;
-  color: #e8a020;
-  letter-spacing: 0.5px;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-
-.site-logo-sub {
-  font-family: Arial, sans-serif;
-  font-size: 11px;
-  color: #a8bcb5;
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-}
-
-.site-header-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   flex-wrap: wrap;
-  justify-content: flex-end;
 }
 
-.site-header .tool-btn {
-  background: #3a4e54;
-  border-color: #5a7278;
-  color: #d0dcd8;
+.mode-switch {
+  position: relative;
+  display: flex;
+  background: var(--void);
+  border: 1px solid var(--line-bright);
+  border-radius: 4px;
+  padding: 3px;
+  gap: 2px;
+  --tabs: 3;
 }
 
-.site-header .tool-btn:hover {
-  background: #445c63;
+.mode-switch::before {
+  content: "";
+  position: absolute;
+  top: 3px; bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--tabs));
+  background: var(--amber-dim);
+  border: 1px solid var(--amber);
+  border-radius: 3px;
+  box-shadow: 0 0 10px var(--amber-glow);
+  transition: transform 0.18s cubic-bezier(.3,0,.2,1);
+  transform: translateX(calc(var(--pos, 0) * 100%));
 }
 
-.site-header .tool-btn.active {
-  background: #2a5c3a;
-  border-color: #4a8c60;
-  color: #b0e0c0;
+.mode-btn {
+  position: relative;
+  z-index: 1;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 7px 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--f-display);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  transition: color 0.15s;
+  min-width: 110px;
+  flex: 1;
 }
 
-.site-header .stamp {
-  color: #8aaba3;
+.mode-btn.active { color: var(--amber); }
+.mode-btn:not(.active):hover { color: var(--paper); }
+
+.mode-hint { color: var(--muted); font-size: 11px; font-family: var(--f-mono); }
+
+.browse-search {
+  background: var(--void);
+  border: 1px solid var(--line-bright);
+  color: var(--paper);
+  padding: 5px 10px;
+  border-radius: 3px;
+  font-family: var(--f-mono);
+  font-size: 12px;
+  min-width: 180px;
 }
+
+.browse-search::placeholder { color: var(--muted); }
+.browse-search:focus { border-color: var(--amber); outline: none; }
+
+.own-badge {
+  display: inline-block;
+  padding: 0 5px;
+  border: 1px solid var(--amber);
+  background: var(--amber-dim);
+  color: var(--amber);
+  border-radius: 2px;
+  font-family: var(--f-display);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.game-tag {
+  display: inline-block;
+  width: 24px;
+  text-align: center;
+  padding: 1px 0;
+  border-radius: 2px;
+  font-family: var(--f-mono);
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--line-bright);
+  color: var(--muted);
+}
+
+.game-tag.fe { border-color: var(--line-bright); color: var(--muted); background: transparent; }
+.game-tag.se { border-color: var(--amber); color: var(--amber-ink); background: var(--amber-fill); }
+
+.browse-row.own { background: rgba(232,160,32,0.05); }
+.browse-row.own:hover { background: rgba(232,160,32,0.1); }
 
 @media (max-width: 720px) {
-  .site-header-inner {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-    padding: 8px 0;
-    min-height: unset;
-  }
-  .site-logo-title { font-size: 18px; }
-}
-
-
-  .page {
-    width: calc(100vw - 12px);
-    padding-top: 6px;
-  }
-
-  .topbar {
-    grid-template-columns: 1fr;
-    align-items: start;
-  }
-
-  .toolbar {
-    justify-content: flex-start;
-  }
-
-  .brand {
-    flex-wrap: wrap;
-  }
-
-  .brand .sub {
-    white-space: normal;
-  }
-
-  .detail-grid {
-    padding-left: 8px;
-  }
+  .site-header-inner { flex-direction: column; align-items: flex-start; gap: 8px; padding: 10px 0; min-height: unset; }
+  .site-logo-title { font-size: 17px; }
+  .page { width: calc(100vw - 12px); }
+  .hud-strip { flex-wrap: wrap; }
+  .hud-stat { flex: 1 1 45%; border-bottom: 1px solid var(--line); }
+  .detail-grid { padding-left: 10px; }
+  .mode-switch-wrap { width: 100%; }
+  .mode-switch { width: 100%; }
+  .mode-btn { flex: 1; min-width: 0; }
 }
 </style>
 </head>
@@ -803,26 +690,18 @@ canvas {
 <header class="site-header">
   <div class="site-header-inner">
     <a class="site-logo" href="#">
-      <svg class="site-logo-icon" viewBox="0 0 44 44" xmlns="http://www.w3.org/2000/svg">
-        <!-- Outer ring -->
-        <circle cx="22" cy="22" r="20" fill="#1a2830" stroke="#e8a020" stroke-width="2"/>
-        <!-- Crosshair lines -->
-        <line x1="22" y1="4"  x2="22" y2="12" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="22" y1="32" x2="22" y2="40" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="4"  y1="22" x2="12" y2="22" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
-        <line x1="32" y1="22" x2="40" y2="22" stroke="#e8a020" stroke-width="1.5" stroke-linecap="round"/>
-        <!-- Inner ring -->
-        <circle cx="22" cy="22" r="9" fill="none" stroke="#e8a020" stroke-width="1.2"/>
-        <!-- Center dot -->
-        <circle cx="22" cy="22" r="3" fill="#e8a020"/>
-      </svg>
+      <!-- Drop your logo file in Dashboard/static/ and point src at it.
+           Falls back to hiding the image (no broken-image icon) if missing. -->
+      <img class="site-logo-icon" src="logo.png" alt="Serious Sam Servers" onerror="this.style.display='none'">
       <div class="site-logo-text">
-        <div class="site-logo-title">Hyper Server</div>
-        <div class="site-logo-sub">Serious Sam: The Second Encounter 1.07 &nbsp;·&nbsp; ClassicsPatch</div>
+        <div class="site-logo-title">Serious Sam Servers</div>
+        <div class="site-logo-sub">SERIOUS SAM CLASSIC &nbsp;·&nbsp; TFE v1.05 / TSE v1.07</div>
       </div>
     </a>
     <div class="site-header-toolbar">
-      <button class="tool-btn" id="refresh-btn" type="button" title="Refresh now">Refresh</button>
+      <button class="tool-btn" id="lang-btn" type="button" title="Switch language">RU</button>
+      <button class="tool-btn" id="theme-btn" type="button" title="Switch between day and night view">Day</button>
+      <button class="tool-btn" id="refresh-btn" type="button" title="Refresh now" data-i18n="refresh" data-i18n-title="refreshNow">Refresh</button>
       <button class="tool-btn active" id="auto-btn" type="button" title="Toggle auto refresh">Auto</button>
       <span class="stamp" id="stamp">Loading...</span>
     </div>
@@ -833,68 +712,89 @@ canvas {
 
   <section class="panel" id="online-panel">
     <div class="panel-head">
-      <span>Online Players <span class="count" id="online-count">(0)</span></span>
+      <span><span data-i18n="onlinePlayers">Online Players</span> <span class="count" id="online-count">(0)</span></span>
       <span class="count" id="online-ping"></span>
     </div>
     <div class="panel-body table-scroll">
       <table class="online-table">
         <thead>
           <tr>
-            <th class="w-small center">#</th>
-            <th>Player</th>
-            <th class="w-country">Country</th>
-            <th class="w-server">Server</th>
-            <th class="w-ping right">Ping</th>
+            <th class="w-small center" data-i18n="hash">#</th>
+            <th data-i18n="player">Player</th>
+            <th class="w-country" data-i18n="country">Country</th>
+            <th class="w-server" data-i18n="server">Server</th>
+            <th class="w-ping right" data-i18n="ping">Ping</th>
           </tr>
         </thead>
         <tbody id="online-body">
-          <tr><td colspan="5" class="empty">Loading...</td></tr>
+          <tr><td colspan="5" class="empty" data-i18n="loading">Loading...</td></tr>
         </tbody>
       </table>
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="server-list-panel">
     <div class="panel-head">
-      <span>Server List <span class="count" id="server-count">(0)</span></span>
+      <span data-i18n="ourServers">Our Servers</span>
       <span class="count" id="server-total"></span>
     </div>
-    <div class="panel-body table-scroll">
-      <table class="server-table">
-        <thead>
-          <tr>
-            <th class="w-status center"></th>
-            <th class="w-toggle center"></th>
-            <th>Server</th>
-            <th class="w-p center" title="Active players">Players</th>
-            <th class="w-small center" title="Unique players in the last 24 hours">Peak</th>
-            <th class="w-map">Map</th>
-            <th class="w-small center" title="Maps in the last 24 hours">Maps</th>
-            <th class="w-small center" title="Recorded demos">Rec</th>
-            <th class="w-small center" title="Offline events in the last 24 hours">Crash</th>
-            <th class="w-time">Seen</th>
-          </tr>
-        </thead>
-        <tbody id="server-body">
-          <tr><td colspan="10" class="empty">Loading servers...</td></tr>
-        </tbody>
-      </table>
+    <div class="panel-body">
+      <div class="hud-strip">
+        <div class="hud-stat">
+          <div class="hud-stat-value" id="hud-online"><span class="of">0/0</span></div>
+          <div class="hud-stat-label" data-i18n="hudServersOnline">Servers online</div>
+        </div>
+        <div class="hud-stat">
+          <div class="hud-stat-value state-ok" id="hud-players">0</div>
+          <div class="hud-stat-label" data-i18n="hudPlayersNow">Players now</div>
+        </div>
+        <div class="hud-stat">
+          <div class="hud-stat-value" id="hud-peak">0</div>
+          <div class="hud-stat-label" data-i18n="hudUniqueToday">Unique today</div>
+        </div>
+        <div class="hud-stat">
+          <div class="hud-stat-value" id="hud-slots">0</div>
+          <div class="hud-stat-label" data-i18n="hudTotalSlots">Total slots</div>
+        </div>
+      </div>
+
+      <div id="mine-panel">
+        <div class="table-scroll">
+          <table class="server-table">
+            <thead>
+              <tr>
+                <th class="w-toggle center"></th>
+                <th class="w-server-name" data-i18n="server" style="padding-left: 52px;">Server</th>
+                <th class="w-p center" title="Active players" data-i18n="playersCol" data-i18n-title="activePlayersTitle">Players</th>
+                <th class="w-small center" title="Unique players in the last 24 hours" data-i18n="peak" data-i18n-title="peakTitle">Peak</th>
+                <th class="w-map" data-i18n="map">Map</th>
+                <th class="w-small center" title="Maps in the last 24 hours" data-i18n="maps" data-i18n-title="mapsTitle">Maps</th>
+                <th class="w-small center" title="Recorded demos" data-i18n="rec" data-i18n-title="recTitle">Rec</th>
+                <th class="w-small center" title="Offline events in the last 24 hours" data-i18n="crash" data-i18n-title="crashTitle">Crash</th>
+              </tr>
+            </thead>
+            <tbody id="server-body">
+              <tr><td colspan="8" class="empty" data-i18n="loadingServers">Loading servers...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="activity-panel">
     <div class="panel-head">
-      <span>24h Activity</span>
-      <span class="count">All servers</span>
+      <span data-i18n="activity">Activity</span>
+      <span class="count" data-i18n="allServers">All servers</span>
     </div>
     <div class="panel-body">
       <div class="graph-box">
         <canvas id="activity-canvas"></canvas>
       </div>
       <div class="legend">
-        <span><i class="lg-players"></i>Player count</span>
-        <span><i class="lg-map"></i>Map changed</span>
-        <span><i class="lg-offline"></i>Offline</span>
+        <span><i class="lg-players"></i><span data-i18n="legendPlayerCount">Player count</span></span>
+        <span><i class="lg-map"></i><span data-i18n="legendMapChanged">Map changed</span></span>
+        <span><i class="lg-offline"></i><span data-i18n="legendOffline">Offline</span></span>
       </div>
     </div>
   </section>
@@ -904,6 +804,12 @@ canvas {
 const API = "";
 const REFRESH_MS = 15000;
 const DAY = 86400;
+
+const SERVER_LABELS = {
+  "srv3": "SE-",
+  "srv4": "FE-",
+  // "srv2": "FE-",
+};
 
 // ─── Static map list ──────────────────────────────────────────────────────────
 // Add every map available on each server so they always appear in Active Maps
@@ -940,6 +846,75 @@ const STATIC_MAPS = {
     { map: "Levels\\!_FarmingMap_MrOgurchick_1\\Farming.wld", title: "Majestic Portal: Search for Artifacts",
 	  pack: "MrOgurchick's", pack_url: "/api/maps/srv2/Mr.OgurchickT_TSpecialHyperServerMiningMapV4.gro" },
   ],
+  // Standard 12-map rotation, taken from the @map chat-command list (paths + titles
+  // match cmd_cmdOnChat's VoteForMap() calls exactly).
+  "srv3": [
+    { map: "Levels\\LevelsMP\\1_1_Palenque.wld",        title: "Sierra de Chiapas",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\1_2_Palenque.wld",         title: "Valley of the Jaguar",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\1_3_Teotihuacan.wld",      title: "The City of the Gods",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\1_4_Teotihuacan.wld",      title: "Serpent Yards",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\1_5_Teotihuacan.wld",      title: "The Pit",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\2_1_Ziggurrat.wld",        title: "Ziggurat",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\2_2_Persepolis.wld",       title: "The Elephant Atrium",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\2_3_Persepolis.wld",       title: "Courtyards of Gilgamesh",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\2_4_TowerOfBabylon.wld",   title: "Tower of Babel",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\3_1_GothicCastle.wld",     title: "The Citadel",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\3_2_LandOfDamned.wld",     title: "Land of the Damned",
+	  pack: "Serious Sam" },
+    { map: "Levels\\LevelsMP\\3_3_CorridorOfDeath.wld",  title: "The Grand Cathedral",
+	  pack: "Serious Sam" },
+  ],
+  // TFE Rocket Jump server maps
+  "srv4": [
+    { map: "Levels\\01_Hatshepsut.wld",                  title: "Hatshepsut",
+	  pack: "Serious Sam" },
+    { map: "Levels\\02_SandCanyon.wld",                  title: "Sand Canyon",
+	  pack: "Serious Sam" },
+    { map: "Levels\\03_TombOfRamses.wld",                title: "Tomb of Ramses",
+	  pack: "Serious Sam" },
+    { map: "Levels\\04_ValleyOfTheKings.wld",            title: "Valley Of The Kings",
+	  pack: "Serious Sam" },
+    { map: "Levels\\05_MoonMountains.wld",               title: "Moon Mountains",
+	  pack: "Serious Sam" },
+    { map: "Levels\\06_Oasis.wld",                       title: "Oasis",
+	  pack: "Serious Sam" },
+    { map: "Levels\\07_Dunes.wld",                       title: "Dunes",
+	  pack: "Serious Sam" },
+    { map: "Levels\\08_Suburbs.wld",                     title: "Suburbs",
+	  pack: "Serious Sam" },
+    { map: "Levels\\09_Sewers.wld",                      title: "Sewers",
+	  pack: "Serious Sam" },
+    { map: "Levels\\10_Metropolis.wld",                  title: "Metropolis",
+	  pack: "Serious Sam" },
+    { map: "Levels\\11_AlleyOfSphinxes.wld",             title: "Alley of Sphinxes",
+	  pack: "Serious Sam" },
+    { map: "Levels\\12_Karnak.wld",                      title: "Karnak",
+	  pack: "Serious Sam" },
+    { map: "Levels\\13_Luxor.wld",                       title: "Luxor",
+	  pack: "Serious Sam" },
+    { map: "Levels\\14_SacredYards.wld",                 title: "Sacred Yards",
+	  pack: "Serious Sam" },
+    { map: "Levels\\15_TheGreatPyramid.wld",             title: "The Great Pyramid",
+	  pack: "Serious Sam" },
+    { map: "Levels\\RJ-WORLD.wld",                       title: "RJ-World",
+      pack: "RJ-World", pack_url: "/api/maps/srv4/FE_COOP_RJ-WORLD.gro" },
+    { map: "Levels\\SpecialMapVer1.6.wld",               title: "Special Jumps",
+      pack: "Special Jumps v1.6", pack_url: "/api/maps/srv4/FE_.gro" },
+    { map: "Levels\\Pro-CannonRocketJump-Training.wld",  title: "Hard Jumps",
+      pack: "Hard Jumps Training", pack_url: "/api/maps/srv4/FE_.gro" },
+    { map: "Levels\\SuburbsX.wld",                       title: "Suburbs X",
+      pack: "Suburbs <<X>>", pack_url: "/api/maps/srv4/FE_COOP_Suburbs_X.gro" },
+  ],
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -954,18 +929,269 @@ let demoGameCache = {};
 let mapCache = {};
 let expandedDemoGames = Object.create(null);
 
+// ─── Language (EN / RU) ────────────────────────────────────────────────────────
+const LANG_KEY = "serioussamservers-lang";
+let lang = "en";
+
+const I18N = {
+  en: {
+    subtitle: "SERIOUS SAM CLASSIC · TFE v1.05 / TSE v1.07",
+    dayView: "Day View",
+    nightView: "Night View",
+    switchToDay: "Switch to day view",
+    switchToNight: "Switch to night view",
+    switchLang: "Switch language",
+    refresh: "Refresh",
+    refreshNow: "Refresh now",
+    toggleAuto: "Toggle auto refresh",
+    auto: "Auto",
+    paused: "Paused",
+    loading: "Loading...",
+    refreshing: "Refreshing...",
+    updated: "Updated ",
+    onlinePlayers: "Online Players",
+    ourServers: "Our Servers",
+    activity: "Activity",
+    allServers: "All servers",
+    hash: "#",
+    player: "Player",
+    country: "Country",
+    server: "Server",
+    ping: "Ping",
+    avgPing: "avg ping ",
+    noPlayersOnline: "No players online",
+    loadingServers: "Loading servers...",
+    noConfiguredServers: "No configured servers",
+    playersCol: "Players",
+    activePlayersTitle: "Active players",
+    peak: "Peak",
+    peakTitle: "Unique players in the last 24 hours",
+    map: "Map",
+    maps: "Maps",
+    mapsTitle: "Maps in the last 24 hours",
+    rec: "Rec",
+    recTitle: "Recorded demos",
+    crash: "Crash",
+    crashTitle: "Offline events in the last 24 hours",
+    toggleDetails: "Toggle details",
+    showPlayers: "Show players",
+    online: "online",
+    offline: "offline",
+    hudServersOnline: "Servers online",
+    hudPlayersNow: "Players now",
+    hudUniqueToday: "Unique today",
+    hudTotalSlots: "Total slots",
+    activeUsers: "Active Users",
+    activeMaps: "Active Maps",
+    recordedDemos: "Recorded Demos",
+    activity24h: "24h Activity",
+    playerObserver: "Player / Observer",
+    total: "Total",
+    mapPack: "MapPack",
+    runs: "Runs",
+    playtime: "Playtime",
+    last: "Last",
+    never: "never",
+    noRecentMaps: "No recent map records",
+    noRecordedDemos: "No recorded demos",
+    demo: "Demo",
+    duration: "Duration",
+    recorded: "Recorded",
+    size: "Size",
+    parts: "Parts",
+    downloadDemo: "Download demo",
+    downloadZip: (n) => "Download zip (" + n + " parts)",
+    download: "Download",
+    noSessionsYet: "No completed player sessions recorded for this game yet",
+    joined: "Joined",
+    time: "Time",
+    part: "Part",
+    legendPlayerCount: "Player count",
+    legendMapChanged: "Map changed",
+    legendOffline: "Offline",
+    noSamples: "No samples",
+  },
+  ru: {
+    subtitle: "SERIOUS SAM CLASSIC · TFE v1.05 / TSE v1.07",
+    dayView: "Дневной вид",
+    nightView: "Ночной вид",
+    switchToDay: "Переключить на дневной вид",
+    switchToNight: "Переключить на ночной вид",
+    switchLang: "Переключить язык",
+    refresh: "Обновить",
+    refreshNow: "Обновить сейчас",
+    toggleAuto: "Переключить автообновление",
+    auto: "Авто",
+    paused: "Пауза",
+    loading: "Загрузка...",
+    refreshing: "Обновление...",
+    updated: "Обновлено ",
+    onlinePlayers: "Игроки онлайн",
+    ourServers: "Наши серверы",
+    activity: "Активность",
+    allServers: "Все серверы",
+    hash: "#",
+    player: "Игрок",
+    country: "Страна",
+    server: "Сервер",
+    ping: "Пинг",
+    avgPing: "средний пинг ",
+    noPlayersOnline: "Нет игроков онлайн",
+    loadingServers: "Загрузка серверов...",
+    noConfiguredServers: "Нет настроенных серверов",
+    playersCol: "Игроки",
+    activePlayersTitle: "Активные игроки",
+    peak: "Пик",
+    peakTitle: "Уникальных игроков за последние 24 часа",
+    map: "Карта",
+    maps: "Карты",
+    mapsTitle: "Карт за последние 24 часа",
+    rec: "Записи",
+    recTitle: "Записанные демо",
+    crash: "Сбои",
+    crashTitle: "Отключения за последние 24 часа",
+    toggleDetails: "Показать детали",
+    showPlayers: "Показать игроков",
+    online: "онлайн",
+    offline: "офлайн",
+    hudServersOnline: "Серверов онлайн",
+    hudPlayersNow: "Игроков сейчас",
+    hudUniqueToday: "Уникальных сегодня",
+    hudTotalSlots: "Всего слотов",
+    activeUsers: "Активные игроки",
+    activeMaps: "Активные карты",
+    recordedDemos: "Записанные демо",
+    activity24h: "Активность за 24ч",
+    playerObserver: "Игрок / Наблюдатель",
+    total: "Всего",
+    mapPack: "Пак карт",
+    runs: "Игр",
+    playtime: "Время игры",
+    last: "Последняя",
+    never: "никогда",
+    noRecentMaps: "Нет данных по картам",
+    noRecordedDemos: "Нет записанных демо",
+    demo: "Демо",
+    duration: "Длительность",
+    recorded: "Записано",
+    size: "Размер",
+    parts: "Части",
+    downloadDemo: "Скачать демо",
+    downloadZip: (n) => "Скачать zip (" + n + " частей)",
+    download: "Скачать",
+    noSessionsYet: "Пока нет завершённых сессий игроков для этой игры",
+    joined: "Вошёл",
+    time: "Время",
+    part: "Часть",
+    legendPlayerCount: "Кол-во игроков",
+    legendMapChanged: "Смена карты",
+    legendOffline: "Офлайн",
+    noSamples: "Нет данных",
+  },
+};
+
+function t(key, ...args) {
+  const dict = I18N[lang] || I18N.en;
+  const val = dict[key] !== undefined ? dict[key] : I18N.en[key];
+  return typeof val === "function" ? val(...args) : (val === undefined ? key : val);
+}
+
+function locale() {
+  return lang === "ru" ? "ru-RU" : "en-GB";
+}
+
+function translateStaticDom() {
+  document.querySelectorAll("[data-i18n]").forEach(node => {
+    node.textContent = t(node.getAttribute("data-i18n"));
+  });
+  document.querySelectorAll("[data-i18n-title]").forEach(node => {
+    node.title = t(node.getAttribute("data-i18n-title"));
+  });
+  document.documentElement.lang = lang;
+}
+
+(function initLang() {
+  let saved = null;
+  try { saved = localStorage.getItem(LANG_KEY); } catch (error) { /* ignore */ }
+  lang = saved === "ru" ? "ru" : "en";
+})();
+
 const el = {
   stamp: document.getElementById("stamp"),
   onlineCount: document.getElementById("online-count"),
   onlinePing: document.getElementById("online-ping"),
   onlineBody: document.getElementById("online-body"),
-  serverCount: document.getElementById("server-count"),
   serverTotal: document.getElementById("server-total"),
   serverBody: document.getElementById("server-body"),
   autoBtn: document.getElementById("auto-btn"),
+  themeBtn: document.getElementById("theme-btn"),
+  langBtn: document.getElementById("lang-btn"),
   refreshBtn: document.getElementById("refresh-btn"),
-  activityCanvas: document.getElementById("activity-canvas")
+  activityCanvas: document.getElementById("activity-canvas"),
+  hudOnline: document.getElementById("hud-online"),
+  hudPlayers: document.getElementById("hud-players"),
+  hudPeak: document.getElementById("hud-peak"),
+  hudSlots: document.getElementById("hud-slots"),
 };
+
+// ─── Day / night view ──────────────────────────────────────────────────────────
+// Defaults to light ("day") since that reads better for most people at a glance;
+// night view is there for anyone who prefers it, and the choice is remembered.
+const THEME_KEY = "serioussamservers-theme";
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute("data-theme", theme);
+  el.themeBtn.textContent = theme === "dark" ? t("dayView") : t("nightView");
+  el.themeBtn.title = theme === "dark" ? t("switchToDay") : t("switchToNight");
+}
+
+function setTheme(theme) {
+  applyTheme(theme);
+  try { localStorage.setItem(THEME_KEY, theme); } catch (error) { /* storage unavailable - theme still applies for this session */ }
+}
+
+(function initTheme() {
+  let saved = null;
+  try { saved = localStorage.getItem(THEME_KEY); } catch (error) { /* ignore */ }
+  applyTheme(saved === "dark" ? "dark" : "light");
+})();
+
+el.themeBtn.addEventListener("click", () => {
+  const current = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  setTheme(current === "dark" ? "light" : "dark");
+  drawGraph(el.activityCanvas, combinedActivity(), flattenEvents(), 96);
+  drawOpenServerGraphs();
+});
+
+// ─── Language toggle: translates static labels, then re-renders already-fetched
+// data (no refetch needed) so tables/graphs pick up the new language instantly. ──
+function applyLang(newLang) {
+  lang = newLang === "ru" ? "ru" : "en";
+  try { localStorage.setItem(LANG_KEY, lang); } catch (error) { /* ignore */ }
+
+  el.langBtn.textContent = lang === "ru" ? "EN" : "RU";
+  el.langBtn.title = t("switchLang");
+
+  translateStaticDom();
+  const currentTheme = document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+  applyTheme(currentTheme);
+  el.autoBtn.textContent = autoRefresh ? t("auto") : t("paused");
+  el.autoBtn.title = t("toggleAuto");
+
+  renderHud(lastServers);
+  renderOnlinePlayers(lastServers);
+  renderServers(lastServers);
+  drawGraph(el.activityCanvas, combinedActivity(), flattenEvents(), 96);
+}
+
+translateStaticDom();
+el.langBtn.textContent = lang === "ru" ? "EN" : "RU";
+el.langBtn.title = t("switchLang");
+el.langBtn.addEventListener("click", () => applyLang(lang === "ru" ? "en" : "ru"));
+
+function themeColor(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
 function html(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g, ch => ({
@@ -1167,7 +1393,7 @@ function samText(value, fallback) {
   // Close any spans still open at end of string
   closeColor();
 
-  return out || html(fallback || "");
+  return '<span class="sam-outline">' + (out || html(fallback || "")) + '</span>';
 }
 
 function mapTitle(value) {
@@ -1204,20 +1430,12 @@ function hms(total) {
   return m + ":" + String(s).padStart(2, "0");
 }
 
-function activeText(value) {
-  if (value == null || value === "") return "--";
-  if (typeof value === "number") return hms(value);
-  const asNumber = Number(value);
-  if (Number.isFinite(asNumber) && String(value).trim() !== "") return hms(asNumber);
-  return html(value);
-}
-
 function fmtDate(ts) {
   if (!ts) return "--";
   const d = new Date(num(ts) * 1000);
   if (Number.isNaN(d.getTime())) return "--";
-  return d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit" }) +
-    " " + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString(locale(), { day: "2-digit", month: "2-digit" }) +
+    " " + d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 }
 
 function seenText(ts) {
@@ -1294,15 +1512,15 @@ function renderOnlinePlayers(servers) {
   players.sort((a, b) => num(a.ping, 9999) - num(b.ping, 9999));
   el.onlineCount.textContent = "(" + players.length + ")";
   const pings = players.map(p => num(p.ping)).filter(Boolean);
-  el.onlinePing.textContent = pings.length ? "avg ping " + Math.round(pings.reduce((a, b) => a + b, 0) / pings.length) : "";
+  el.onlinePing.textContent = pings.length ? t("avgPing") + Math.round(pings.reduce((a, b) => a + b, 0) / pings.length) : "";
 
   if (!players.length) {
-    el.onlineBody.innerHTML = '<tr><td colspan="5" class="empty">No players online</td></tr>';
+    el.onlineBody.innerHTML = '<tr><td colspan="5" class="empty">' + html(t("noPlayersOnline")) + '</td></tr>';
     return;
   }
 
   el.onlineBody.innerHTML = players.map((p, index) => {
-    const name = cleanSam(p.name) || "Player";
+    const name = cleanSam(p.name) || t("player");
     return '<tr>' +
       '<td class="center">' + (index + 1) + '</td>' +
       '<td><div class="name sam-name" title="' + html(name) + '">' + samText(p.name, name) + '</div></td>' +
@@ -1313,14 +1531,26 @@ function renderOnlinePlayers(servers) {
   }).join("");
 }
 
+function renderHud(servers) {
+  const onlineCount = servers.filter(s => s.online).length;
+  const totalPlayers = servers.reduce((sum, s) => sum + num(s.numplayers), 0);
+  const totalSlots = servers.reduce((sum, s) => sum + num(s.maxplayers), 0);
+  const uniqueToday = servers.reduce((sum, s) => sum + num(s.total_players_today), 0);
+
+  el.hudOnline.innerHTML = '<span class="of">' + onlineCount + '/' + servers.length + '</span>';
+  el.hudOnline.className = "hud-stat-value " + (onlineCount === servers.length && servers.length ? "state-ok" : onlineCount === 0 ? "state-alert" : "");
+  el.hudPlayers.textContent = totalPlayers;
+  el.hudPeak.textContent = uniqueToday;
+  el.hudSlots.textContent = totalSlots;
+}
+
 function renderServers(servers) {
   const totalPlayers = servers.reduce((sum, s) => sum + num(s.numplayers), 0);
   const totalSlots = servers.reduce((sum, s) => sum + num(s.maxplayers), 0);
-  el.serverCount.textContent = "(" + servers.length + ")";
   el.serverTotal.textContent = totalPlayers + "/" + totalSlots + " players";
 
   if (!servers.length) {
-    el.serverBody.innerHTML = '<tr><td colspan="10" class="empty">No configured servers</td></tr>';
+    el.serverBody.innerHTML = '<tr><td colspan="8" class="empty">' + html(t("noConfiguredServers")) + '</td></tr>';
     return;
   }
 
@@ -1328,28 +1558,24 @@ function renderServers(servers) {
   for (const server of servers) {
     const sid = String(server.id);
     const open = !!expandedServers[sid];
-    const liveName = cleanSam(server.hostname || "");
-    const titleName = liveName && liveName !== server.label ? liveName : "";
     const max = Math.max(1, num(server.maxplayers, 8));
     const current = num(server.numplayers);
     const fill = Math.min(100, Math.round(current / max * 100));
     const statusClass = server.online ? "on" : "off";
-    const statusTitle = server.online ? "online" : "offline";
+    const statusTitle = server.online ? t("online") : t("offline");
 
     out += '<tr class="server-row ' + (open ? "open" : "") + '" data-row-toggle="' + html(sid) + '">' +
-      '<td class="center"><span class="status-dot ' + statusClass + '" title="' + statusTitle + '"></span></td>' +
-      '<td class="center toggle-cell"><button class="toggle-btn ' + (open ? "open" : "") + '" type="button" data-server-toggle="' + html(sid) + '" title="Toggle details"><span class="chev"></span></button></td>' +
-      '<td><div class="server-name"><b title="' + html(server.host + ":" + server.port) + '">' + samText(server.hostname) + '</b>' /* + (titleName ? '<span class="sam-name" title="' + html(titleName) + '">' + samText(server.label, titleName) + '</span>' : '') */ + '</div></td>' +
-      '<td class="center"><div class="nowrap">' + current + "/" + max + '</div><div class="meter"><span style="width:' + fill + '%"></span></div></td>' +
-      '<td class="center">' + html(num(server.total_players_today)) + '</td>' +
-      '<td title="' + samText(server.mapname || "") + '">' + samText(resolveMapTitle(sid, server.mapname)) + '</td>' +
-      '<td class="center">' + html(num(server.active_maps_count)) + '</td>' +
-      '<td class="center">' + html(num(server.demo_game_count, (demoGameCache[sid] || []).length || server.demo_count)) + '</td>' +
-      '<td class="center">' + html(num(server.crash_count)) + '</td>' +
-      '<td class="nowrap">' + html(seenText(server.queried_at)) + '</td>' +
+      '<td class="center toggle-cell"><button class="toggle-btn ' + (open ? "open" : "") + '" type="button" data-server-toggle="' + html(sid) + '" title="' + html(t("toggleDetails")) + '"><span class="chev"></span></button></td>' +
+      '<td><div class="server-name"><span class="status-dot ' + statusClass + '" title="' + html(statusTitle) + '"></span><span class="server-name-text" title="' + html(server.host + ":" + server.port) + '">' + (SERVER_LABELS[sid] ? '<span class="server-name-prefix">' + html(SERVER_LABELS[sid]) + '</span>' : '') + samText(server.hostname) + '</span></div></td>' +
+      '<td class="center"><div class="nowrap mono">' + current + "/" + max + '</div><div class="meter"><span style="width:' + fill + '%"></span></div></td>' +
+      '<td class="center mono">' + html(num(server.total_players_today)) + '</td>' +
+      '<td title="' + html(cleanSam(server.mapname || "")) + '">' + samText(resolveMapTitle(sid, server.mapname)) + '</td>' +
+      '<td class="center mono">' + html(num(server.active_maps_count)) + '</td>' +
+      '<td class="center mono">' + html(num(server.demo_game_count, (demoGameCache[sid] || []).length || server.demo_count)) + '</td>' +
+      '<td class="center mono">' + html(num(server.crash_count)) + '</td>' +
       '</tr>' +
       '<tr class="detail-row ' + (open ? "open" : "") + '" id="detail-' + html(sid) + '">' +
-      '<td class="detail-cell" colspan="10">' + renderServerDetail(server) + '</td>' +
+      '<td class="detail-cell" colspan="8">' + renderServerDetail(server) + '</td>' +
       '</tr>';
   }
 
@@ -1418,70 +1644,70 @@ function renderServerDetail(server) {
   const demos = demoGameCache[sid] || [];
 
   return '<div class="detail-grid">' +
-    renderSection(server, "players", "Active Users", players.length, true, renderPlayersTable(players)) +
-    renderSection(server, "maps", "Active Maps", maps.length, true, renderMapsTable(maps)) +
-    renderSection(server, "demos", "Recorded Demos", demos.length, false, renderDemosTable(server, demos)) +
+    renderSection(server, "players", t("activeUsers"), players.length, true, renderPlayersTable(players)) +
+    renderSection(server, "maps", t("activeMaps"), maps.length, true, renderMapsTable(maps)) +
+    renderSection(server, "demos", t("recordedDemos"), demos.length, false, renderDemosTable(server, demos)) +
     '<div class="section open">' +
-      '<button class="section-head" type="button" tabindex="-1"><span class="section-title"><span class="mini-chev"></span><span>24h Activity</span></span></button>' +
+      '<button class="section-head" type="button" tabindex="-1"><span class="section-title"><span class="mini-chev"></span><span>' + html(t("activity24h")) + '</span></span></button>' +
       '<div class="section-body mini-graph"><div class="graph-box"><canvas id="graph-' + html(sid) + '"></canvas></div></div>' +
     '</div>' +
   '</div>';
 }
 
 function renderPlayersTable(players) {
-  if (!players.length) return '<div class="empty">No players online</div>';
+  if (!players.length) return '<div class="empty">' + html(t("noPlayersOnline")) + '</div>';
   return '<div class="table-scroll"><table class="sub-table"><thead><tr>' +
-    '<th class="w-small center">#</th><th>Player / Observer</th><th class="w-country">Country</th><th class="w-ping right">Ping</th><th class="w-time right">Total</th>' +
+    '<th class="w-small center">' + html(t("hash")) + '</th><th>' + html(t("playerObserver")) + '</th><th class="w-country">' + html(t("country")) + '</th><th class="w-ping right">' + html(t("ping")) + '</th><th class="w-time right">' + html(t("total")) + '</th>' +
     '</tr></thead><tbody>' +
     players.map((p, i) => {
-      const name = cleanSam(p.name) || "Player";
+      const name = cleanSam(p.name) || t("player");
       return '<tr>' +
         '<td class="center">' + (i + 1) + '</td>' +
         '<td><div class="name sam-name" title="' + html(name) + '">' + samText(p.name, name) + '</div></td>' +
         '<td>' + countryText(p.country) + '</td>' +
         '<td class="right">' + pingTag(p.ping) + '</td>' +
-        '<td class="right">' + (p.total_playtime ? html(hms(p.total_playtime)) : "--") + '</td>' +
+        '<td class="right mono">' + (p.total_playtime ? html(hms(p.total_playtime)) : "--") + '</td>' +
         '</tr>';
     }).join("") +
     '</tbody></table></div>';
 }
 
 function renderMapsTable(maps) {
-  if (!maps.length) return '<div class="empty">No recent map records</div>';
+  if (!maps.length) return '<div class="empty">' + html(t("noRecentMaps")) + '</div>';
   return '<div class="table-scroll"><table class="sub-table"><thead><tr>' +
-    '<th class="w-small center">#</th><th>Map</th><th class="w-server">MapPack</th><th class="w-small right">Players</th><th class="w-small right">Runs</th><th class="w-active right">Playtime</th><th class="w-time">Last</th>' +
+    '<th class="w-small center">' + html(t("hash")) + '</th><th>' + html(t("map")) + '</th><th class="w-server">' + html(t("mapPack")) + '</th><th class="w-small">' + html(t("playersCol")) + '</th><th class="w-small">' + html(t("runs")) + '</th><th class="w-active">' + html(t("playtime")) + '</th><th class="w-time">' + html(t("last")) + '</th>' +
     '</tr></thead><tbody>' +
     maps.slice(0, 40).map((m, i) => {
       const hasStats = num(m.sessions) > 0;
       const packCell = m.pack
         ? (m.pack_url
-            ? '<a class="download" href="' + html(m.pack_url) + '" title="Download ' + html(m.pack) + '">' + html(m.pack) + '</a>'
+            ? '<div class="pack-cell"><span class="pack-name" title="' + html(m.pack) + '">' + html(m.pack) + '</span><a class="download pack-link" href="' + html(m.pack_url) + '" title="' + html(t("download")) + ' ' + html(m.pack) + '">' + html(t("download")) + '</a></div>'
             : html(m.pack))
         : '<span class="muted">—</span>';
       return '<tr' + (hasStats ? '' : ' class="map-unplayed"') + '>' +
         '<td class="center">' + (i + 1) + '</td>' +
         '<td title="' + html(m.map || m.title) + '">' + html(m.title || mapTitle(m.map)) + '</td>' +
         '<td>' + packCell + '</td>' +
-        '<td class="right">' + (hasStats ? html(num(m.players)) : '<span class="muted">—</span>') + '</td>' +
-        '<td class="right">' + (hasStats ? html(num(m.sessions)) : '<span class="muted">—</span>') + '</td>' +
-        '<td class="right">' + (hasStats ? html(hms(m.playtime)) : '<span class="muted">—</span>') + '</td>' +
-        '<td class="nowrap">' + (m.last_seen ? html(fmtDate(m.last_seen)) : '<span class="muted">never</span>') + '</td>' +
+        '<td class="mono">' + (hasStats ? html(num(m.players)) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="mono">' + (hasStats ? html(num(m.sessions)) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="mono">' + (hasStats ? html(hms(m.playtime)) : '<span class="muted">—</span>') + '</td>' +
+        '<td class="nowrap mono">' + (m.last_seen ? html(fmtDate(m.last_seen)) : '<span class="muted">' + html(t("never")) + '</span>') + '</td>' +
         '</tr>';
     }).join("") +
     '</tbody></table></div>';
 }
 
 function renderDemosTable(server, demos) {
-  if (!demos.length) return '<div class="empty">No recorded demos</div>';
+  if (!demos.length) return '<div class="empty">' + html(t("noRecordedDemos")) + '</div>';
   return '<div class="table-scroll"><table class="sub-table demo-table"><thead><tr>' +
-    '<th class="w-small center">#</th>' +
+    '<th class="w-small center">' + html(t("hash")) + '</th>' +
     '<th class="w-toggle center"></th>' +
-    '<th>Demo</th>' +
-    '<th class="w-small center">Players</th>' +
-    '<th class="w-duration center">Duration</th>' +
-    '<th class="w-time">Recorded</th>' +
-    '<th class="w-size right">Size</th>' +
-    '<th>Parts</th>' +
+    '<th>' + html(t("demo")) + '</th>' +
+    '<th class="w-size">' + html(t("size")) + '</th>' +
+    '<th class="w-small">' + html(t("playersCol")) + '</th>' +
+    '<th class="w-duration">' + html(t("duration")) + '</th>' +
+    '<th class="w-time">' + html(t("recorded")) + '</th>' +
+    '<th style="width: 360px;">' + html(t("parts")) + '</th>' +
     '</tr></thead><tbody>' +
     demos.slice(0, 80).map((game, i) => renderDemoGameRows(server, game, i)).join("") +
     '</tbody></table></div>';
@@ -1498,9 +1724,9 @@ function renderDemoGameRows(server, game, index) {
   const dlAllHref = parts.length === 1
     ? API + "/api/demos/" + sid + "/" + encodeURIComponent(String(parts[0].filename || ""))
     : API + "/api/demos/" + sid + "/zip?parts=" + parts.map(p => encodeURIComponent(String(p.filename || ""))).join(",");
-  const dlAllLabel = parts.length > 1 ? "Download zip (" + parts.length + " parts)" : "Download demo";
+  const dlAllLabel = parts.length > 1 ? t("downloadZip", parts.length) : t("downloadDemo");
   const titleCell = parts.length
-    ? '<div><a class="download demo-dl-all" href="' + html(dlAllHref) + '" onclick="event.stopPropagation()" title="' + html(title) + (parts.length > 1 ? " · " + parts.length + " parts" : "") + '">' + html(dlAllLabel) + '</a></div>'
+    ? '<div><a class="download demo-dl-all" href="' + html(dlAllHref) + '" onclick="event.stopPropagation()" title="' + html(title) + (parts.length > 1 ? " · " + parts.length + " " + t("parts").toLowerCase() : "") + '">' + html(dlAllLabel) + '</a></div>'
     : '<span class="muted">' + html(title) + '</span>';
 
   // Per-part download links back in the Parts column
@@ -1509,7 +1735,7 @@ function renderDemoGameRows(server, game, index) {
         parts.map(part => {
           const file = String(part.filename || "");
           const href = API + "/api/demos/" + sid + "/" + encodeURIComponent(file);
-          const tip = "Part " + (part.part || "") + " · " + fmtDate(part.recorded_at) + " · " + bytes(part.size_bytes);
+          const tip = t("part") + " " + (part.part || "") + " · " + fmtDate(part.recorded_at) + " · " + bytes(part.size_bytes);
           return '<a class="part-link" href="' + html(href) + '" title="' + html(tip) + '" onclick="event.stopPropagation()">d' + html(part.part || "") + '</a>';
         }).join("") +
       '</div>'
@@ -1517,12 +1743,12 @@ function renderDemoGameRows(server, game, index) {
 
   return '<tr class="demo-game-row ' + (open ? "open" : "") + '" data-demo-row="' + html(gameId) + '">' +
       '<td class="center">' + (index + 1) + '</td>' +
-      '<td class="center toggle-cell"><button class="toggle-btn ' + (open ? "open" : "") + '" type="button" data-demo-toggle="' + html(gameId) + '" title="Show players"><span class="chev"></span></button></td>' +
+      '<td class="center toggle-cell"><button class="toggle-btn ' + (open ? "open" : "") + '" type="button" data-demo-toggle="' + html(gameId) + '" title="' + html(t("showPlayers")) + '"><span class="chev"></span></button></td>' +
       '<td title="' + html(game.map || title) + '">' + titleCell + '</td>' +
-      '<td class="right">' + html(num(game.players_count)) + '</td>' +
-      '<td class="right nowrap">' + html(hms(game.duration)) + '</td>' +
-      '<td class="nowrap">' + html(fmtDate(game.recorded_at)) + '</td>' +
-      '<td class="right nowrap">' + html(bytes(game.size_bytes)) + '</td>' +
+      '<td class="nowrap mono">' + html(bytes(game.size_bytes)) + '</td>' +
+      '<td class="mono">' + html(num(game.players_count)) + '</td>' +
+      '<td class="nowrap mono">' + html(hms(game.duration)) + '</td>' +
+      '<td class="nowrap mono">' + html(fmtDate(game.recorded_at)) + '</td>' +
       '<td>' + partLinks + '</td>' +
     '</tr>' +
     '<tr class="demo-game-detail ' + (open ? "open" : "") + '">' +
@@ -1533,7 +1759,7 @@ function renderDemoGameRows(server, game, index) {
 function renderDemoGameDetail(server, game) {
   const players = game.players || [];
   const parts = game.parts || [];
-  if (!players.length) return '<div class="empty">No completed player sessions recorded for this game yet</div>';
+  if (!players.length) return '<div class="empty">' + html(t("noSessionsYet")) + '</div>';
 
   // Build header: part numbers aligned with presence cells
   const partCount = parts.length || Math.max(...players.map(p => (p.parts || []).length), 1);
@@ -1542,21 +1768,21 @@ function renderDemoGameDetail(server, game) {
     '</div>';
 
   return '<table class="sub-table demo-detail-table"><thead><tr>' +
-    '<th class="w-small center">#</th>' +
-    '<th>Player</th>' +
-    '<th class="w-country">Country</th>' +
-    '<th class="w-time">Joined</th>' +
-    '<th class="w-duration right">Time</th>' +
+    '<th class="w-small center">' + html(t("hash")) + '</th>' +
+    '<th>' + html(t("player")) + '</th>' +
+    '<th class="w-country">' + html(t("country")) + '</th>' +
+    '<th class="w-time">' + html(t("joined")) + '</th>' +
+    '<th class="w-duration right">' + html(t("time")) + '</th>' +
     '<th><div class="presence-col-head">' + presenceHeader + '</div></th>' +
     '</tr></thead><tbody>' +
     players.map((p, i) => {
-      const name = cleanSam(p.name) || "Player";
+      const name = cleanSam(p.name) || t("player");
       return '<tr>' +
         '<td class="center">' + (i + 1) + '</td>' +
         '<td><div class="name sam-name" title="' + html(name) + '">' + samText(p.name, name) + '</div></td>' +
         '<td>' + countryText(p.country) + '</td>' +
-        '<td class="nowrap">' + html(fmtDate(p.join_time)) + '</td>' +
-        '<td class="right">' + html(hms(p.playtime)) + '</td>' +
+        '<td class="nowrap mono">' + html(fmtDate(p.join_time)) + '</td>' +
+        '<td class="right mono">' + html(hms(p.playtime)) + '</td>' +
         '<td>' + renderPartPresence(parts, p.parts || [], partCount) + '</td>' +
       '</tr>';
     }).join("") +
@@ -1569,7 +1795,7 @@ function renderPartPresence(parts, presence, partCount) {
   for (let i = 0; i < count; i += 1) {
     const part = parts[i] || {};
     const active = !!presence[i];
-    const tip = "Part " + (i + 1) + (part.recorded_at ? " · " + fmtDate(part.recorded_at) : "");
+    const tip = t("part") + " " + (i + 1) + (part.recorded_at ? " · " + fmtDate(part.recorded_at) : "");
     cells.push('<span class="part-cell ' + (active ? "on" : "off") + '" title="' + html(tip) + '"></span>');
   }
   return '<div class="part-strip" style="--parts:' + count + '">' + cells.join("") + '</div>';
@@ -1636,10 +1862,19 @@ function drawGraph(canvas, series, events, height) {
   canvas.style.height = cssH + "px";
   canvas.style.width = cssW + "px";
 
+  const c = {
+    panel: themeColor("--panel") || "#ffffff",
+    line: themeColor("--line") || "#cdc5ab",
+    lineBright: themeColor("--line-bright") || "#a89c7a",
+    muted: themeColor("--muted") || "#5c5748",
+    amber: themeColor("--amber") || "#8a5a06",
+    alert: themeColor("--alert") || "#9c2e26",
+  };
+
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, cssW, cssH);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = c.panel;
   ctx.fillRect(0, 0, cssW, cssH);
 
   const pad = { left: 30, right: 8, top: 7, bottom: 18 };
@@ -1649,11 +1884,11 @@ function drawGraph(canvas, series, events, height) {
   const minT = now - DAY;
   const maxCount = Math.max(1, ...((series || []).map(p => num(p[1]))));
 
-  ctx.strokeStyle = "#d9e3de";
+  ctx.strokeStyle = c.line;
   ctx.lineWidth = 1;
-  ctx.font = "9px Arial, sans-serif";
+  ctx.font = "9px 'JetBrains Mono', monospace";
   ctx.textAlign = "right";
-  ctx.fillStyle = "#6c7b78";
+  ctx.fillStyle = c.muted;
 
   [0, 0.5, 1].forEach(mark => {
     const y = pad.top + gh * (1 - mark);
@@ -1668,7 +1903,7 @@ function drawGraph(canvas, series, events, height) {
     const ts = num(ev.ts);
     if (ts < minT || ts > now) continue;
     const x = pad.left + ((ts - minT) / DAY) * gw;
-    ctx.strokeStyle = ev.type === "crash" ? "#b23b3b" : "#a96800";
+    ctx.strokeStyle = ev.type === "crash" ? c.alert : c.amber;
     ctx.setLineDash([2, 2]);
     ctx.beginPath();
     ctx.moveTo(x, pad.top);
@@ -1680,7 +1915,7 @@ function drawGraph(canvas, series, events, height) {
   if ((series || []).length) {
     const sorted = series.slice().sort((a, b) => num(a[0]) - num(b[0]));
     const bucket = sorted.length > 1 ? Math.max(2, ((num(sorted[1][0]) - num(sorted[0][0])) / DAY) * gw - 1) : 5;
-    ctx.fillStyle = "#2f6690";
+    ctx.fillStyle = c.amber;
     for (const point of sorted) {
       const ts = num(point[0]);
       const count = num(point[1]);
@@ -1691,11 +1926,11 @@ function drawGraph(canvas, series, events, height) {
     }
   } else {
     ctx.textAlign = "center";
-    ctx.fillStyle = "#7a8784";
-    ctx.fillText("No samples", pad.left + gw / 2, pad.top + gh / 2);
+    ctx.fillStyle = c.muted;
+    ctx.fillText(t("noSamples"), pad.left + gw / 2, pad.top + gh / 2);
   }
 
-  ctx.strokeStyle = "#9dafaa";
+  ctx.strokeStyle = c.lineBright;
   ctx.beginPath();
   ctx.moveTo(pad.left, pad.top);
   ctx.lineTo(pad.left, pad.top + gh);
@@ -1703,7 +1938,7 @@ function drawGraph(canvas, series, events, height) {
   ctx.stroke();
 
   ctx.textAlign = "center";
-  ctx.fillStyle = "#6c7b78";
+  ctx.fillStyle = c.muted;
   for (let h = 0; h <= 24; h += 6) {
     const x = pad.left + (h / 24) * gw;
     const date = new Date((minT + h * 3600) * 1000);
@@ -1712,7 +1947,7 @@ function drawGraph(canvas, series, events, height) {
 }
 
 async function refresh() {
-  el.stamp.textContent = "Refreshing...";
+  el.stamp.textContent = t("refreshing");
   try {
     const since = Math.floor(Date.now() / 1000) - DAY;
     const [servers, activity, events, demoGames, maps] = await Promise.all([
@@ -1729,10 +1964,11 @@ async function refresh() {
     demoGameCache = groupByServer(demoGames || []);
     mapCache = groupByServer(maps || []);
 
+    renderHud(lastServers);
     renderOnlinePlayers(lastServers);
     renderServers(lastServers);
     drawGraph(el.activityCanvas, combinedActivity(), flattenEvents(), 96);
-    el.stamp.textContent = "Updated " + new Date().toLocaleTimeString("en-GB");
+    el.stamp.textContent = t("updated") + new Date().toLocaleTimeString(locale());
   } catch (error) {
     el.stamp.innerHTML = '<span class="err">' + html(error.message || error) + '</span>';
   }
@@ -1741,7 +1977,8 @@ async function refresh() {
 function setAutoRefresh(enabled) {
   autoRefresh = enabled;
   el.autoBtn.classList.toggle("active", autoRefresh);
-  el.autoBtn.textContent = autoRefresh ? "Auto" : "Paused";
+  el.autoBtn.textContent = autoRefresh ? t("auto") : t("paused");
+  el.autoBtn.title = t("toggleAuto");
   if (refreshTimer) clearInterval(refreshTimer);
   refreshTimer = autoRefresh ? setInterval(refresh, REFRESH_MS) : null;
 }
@@ -1753,7 +1990,7 @@ window.addEventListener("resize", () => {
   drawOpenServerGraphs();
 });
 
-setAutoRefresh(true);
+setAutoRefresh(false);
 refresh();
 </script>
 </body>

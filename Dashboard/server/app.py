@@ -66,6 +66,16 @@ SERVERS = [
         "maps_dir": "D:/CustomTSE/Maps",               # path to folder containing map pack zips for download
         "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
     },
+    {
+        "id":       "srv4",
+        "label":    "",
+        "host":     "192.168.10.11",
+        "port":     25720,             # net_iPort from init.ini
+        "db":       "D:/CustomTFE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
+        "demos_dir":"D:/CustomTFE/Demos/rocketjump",              # path to Demos\ folder
+        "maps_dir": "D:/CustomTFE/Maps",               # path to folder containing map pack zips for download
+        "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
+    },
     # Add more servers here:
     # { "id": "srv2", "label": "Custom Maps", "host": "127.0.0.1", "port": 25667, ... },
 ]
@@ -103,9 +113,10 @@ _ip_lookup_pending: set  = set()
 _event_log = {s["id"]: [] for s in SERVERS}
 
 SAM_MARKUP_RE = re.compile(r"\^[cC][0-9a-fA-F]{6}|\^[aA][0-9a-fA-F]{2}|\^[fF][0-9]?|\^[rRcCbBiIjJnNaA0-9]")
-DEMO_NAME_RE = re.compile(r"^auto_(\d{8})_(\d{6})_(.+)\.dem$", re.IGNORECASE)
-DEMO_PART_SECONDS = 300
+DEMO_NAME_RE = re.compile(r"^(\d{8})_(\d{6})(?:_to_(\d{8})_(\d{6}))?_(.+)\.dem$", re.IGNORECASE)
+DEMO_PART_SECONDS = 300      # no longer used to compute duration (see _demo_files) - kept as a reference to the configured rotation interval
 DEMO_GROUP_GAP_SECONDS = 360
+DEMO_MAX_PLAUSIBLE_SECONDS = 3600   # sanity cap on a single part's inferred duration, in case a file's mtime is wrong (e.g. touched by a backup job long after recording actually stopped)
 
 def _safe_int(value, default=0) -> int:
     try:
@@ -183,15 +194,27 @@ def _gamespy_query(host: str, port: int, timeout: float = 2.0) -> dict | None:
         s.sendto(payload, (host, query_port))
 
         chunks = []
+        got_any_data = False
         while True:
             try:
                 data, _ = s.recvfrom(4096)
+                got_any_data = True
                 chunks.append(data.decode("cp1251", errors="replace"))
                 if b"\\final\\" in data:
                     break
             except socket.timeout:
                 break
         s.close()
+
+        # [1111] fixed: previously, a fully unreachable server (nothing ever
+        # replies, so this loop times out on the very first recvfrom) fell
+        # through to _parse_gamespy("") - which doesn't raise, it just returns
+        # a dict with hostname="", numplayers=0, maxplayers=8 defaulted in.
+        # That's a non-None, "valid-looking" result, so the poller reported
+        # the server as online with nobody home. Zero bytes ever received
+        # means offline, full stop - don't hand that to the parser at all.
+        if not got_any_data:
+            return None
 
         raw = "".join(chunks)
         return _parse_gamespy(raw)
@@ -304,6 +327,173 @@ def _poll_loop():
 
 
 threading.Thread(target=_poll_loop, daemon=True).start()
+
+# ─── 333networks public server list ("All Servers" browse tab) ───────────────
+# Same master list the in-game @browse command reads (Core/Query/PlayersBrowse.cpp),
+# fetched here instead so the dashboard can show it too. Refreshed independently
+# of the GameSpy poller above since it's a much larger, slower-moving list and
+# doesn't need 15s freshness.
+
+BROWSE_GAMES = [
+    {"code": "FE", "slug": "serioussam",   "label": "The First Encounter"},
+    {"code": "SE", "slug": "serioussamse", "label": "The Second Encounter"},
+]
+BROWSE_POLL_INTERVAL = 300  # 5 min - this is a big public list, no need to hammer it
+
+_browse_cache: list = []
+_browse_updated_at: int | None = None
+_browse_last_error: str | None = None
+_browse_lock = threading.Lock()
+
+
+def _own_server_keys() -> set:
+    """(host, port) pairs for servers we manage, so browse entries can be tagged."""
+    return {(s["host"], s["port"]) for s in SERVERS}
+
+
+BROWSE_HEADERS = {
+    # A generic default User-Agent (what requests sends if you don't set one)
+    # gets silently rejected by a lot of APIs, including possibly this one -
+    # identifying the app properly is also just good manners, and 333networks'
+    # own terms ask that use of their data be attributable anyway.
+    "User-Agent": "HyperServerDashboard/1.0 (+https://github.com/Vilkro/ServerUpgrade)",
+    "Accept": "application/json",
+}
+
+
+def _fetch_browse_list() -> tuple[list, str | None]:
+    """Returns (servers, error). error is None on a clean fetch of at least one
+    game; otherwise it's the most recent failure reason, so the frontend can
+    show *why* the list is empty instead of "Loading..." forever."""
+    own_keys = _own_server_keys()
+    servers = []
+    last_error = None
+    any_ok = False
+    for game in BROWSE_GAMES:
+        try:
+            r = requests.get(
+                f"https://master.333networks.com/json/{game['slug']}",
+                headers=BROWSE_HEADERS, timeout=8.0,
+            )
+            r.raise_for_status()
+            entries = r.json()
+            any_ok = True
+        except requests.exceptions.Timeout:
+            last_error = f"Timed out contacting 333networks for {game['code']}"
+            continue
+        except requests.exceptions.ConnectionError as exc:
+            last_error = f"Couldn't reach 333networks ({game['code']}): {exc.__class__.__name__} - check this machine's outbound internet access"
+            continue
+        except requests.exceptions.HTTPError as exc:
+            last_error = f"333networks returned {exc.response.status_code if exc.response is not None else '?'} for {game['code']}"
+            continue
+        except ValueError:
+            last_error = f"333networks response for {game['code']} wasn't valid JSON"
+            continue
+        except Exception as exc:
+            last_error = f"{game['code']}: {exc.__class__.__name__}: {exc}"
+            continue
+        for e in entries or []:
+            ip = e.get("ip", "")
+            port = _safe_int(e.get("hostport"), 0)
+            servers.append({
+                "game":         game["code"],
+                "game_label":   game["label"],
+                "hostname":     e.get("hostname", ""),
+                "mapname":      e.get("mapname", ""),
+                "ip":           ip,
+                "port":         port,
+                "queryport":    _safe_int(e.get("queryport"), port + 1 if port else 0),
+                "numplayers":   _safe_int(e.get("numplayers"), 0),
+                "maxplayers":   _safe_int(e.get("maxplayers"), 0),
+                "is_own":       (ip, port) in own_keys,
+            })
+    servers.sort(key=lambda s: (-s["is_own"], -s["numplayers"], s["hostname"].lower()))
+    return servers, (None if any_ok else last_error)
+
+
+def _browse_poll_loop():
+    global _browse_updated_at, _browse_last_error
+    while True:
+        try:
+            fresh, error = _fetch_browse_list()
+            with _browse_lock:
+                if fresh or error is None:
+                    # only overwrite the cache on a fetch that actually got data,
+                    # or on a clean "zero servers" result - a transient failure
+                    # shouldn't wipe out the last known-good list
+                    _browse_cache[:] = fresh
+                    _browse_updated_at = int(time.time())
+                _browse_last_error = error
+                if error:
+                    print(f"[browse] 333networks fetch failed: {error}")
+        except Exception as exc:
+            with _browse_lock:
+                _browse_last_error = f"Unexpected error: {exc}"
+            print(f"[browse] 333networks poll loop error: {exc}")
+        time.sleep(BROWSE_POLL_INTERVAL)
+
+
+threading.Thread(target=_browse_poll_loop, daemon=True).start()
+
+# ─── 42amsterdam ("All Servers" 3rd tab) ──────────────────────────────────────
+# 42amsterdam.net runs its OWN separate master server - it predates 333networks
+# and isn't reliably a subset of it, so filtering the 333networks feed by name
+# would be guessing. Their site also disallows automated scraping (robots.txt),
+# so this queries their known dedicated servers directly with the same GameSpy
+# \status\ protocol already used above for your own servers - the same thing
+# any server browser does, just pointed at a fixed list instead of a live master.
+#
+# Fill in the actual host/port pairs for the 42amsterdam servers you want shown.
+# Get these the same way you'd get any server's connect address (in-game server
+# browser, or their site) - left empty here since guessing at IPs would be worse
+# than an honest empty list.
+AMSTERDAM_SERVERS = [
+    # {"host": "1.2.3.4", "port": 25601, "game": "SE"},
+]
+AMSTERDAM_POLL_INTERVAL = 60  # small fixed list - fine to check this often
+
+_amsterdam_cache: list = []
+_amsterdam_updated_at: int | None = None
+_amsterdam_lock = threading.Lock()
+
+
+def _fetch_amsterdam_list() -> list:
+    servers = []
+    for entry in AMSTERDAM_SERVERS:
+        state = _gamespy_query(entry["host"], entry["port"])
+        if state is None:
+            continue  # offline or unreachable - just omit it, don't fake an entry
+        servers.append({
+            "game":       entry.get("game", "?"),
+            "game_label": {"FE": "The First Encounter", "SE": "The Second Encounter"}.get(entry.get("game"), ""),
+            "hostname":   state.get("hostname", ""),
+            "mapname":    state.get("mapname", ""),
+            "ip":         entry["host"],
+            "port":       entry["port"],
+            "numplayers": state.get("numplayers", 0),
+            "maxplayers": state.get("maxplayers", 0),
+            "is_own":     False,
+        })
+    servers.sort(key=lambda s: (-s["numplayers"], s["hostname"].lower()))
+    return servers
+
+
+def _amsterdam_poll_loop():
+    global _amsterdam_updated_at
+    while True:
+        try:
+            fresh = _fetch_amsterdam_list()
+            with _amsterdam_lock:
+                _amsterdam_cache[:] = fresh
+                _amsterdam_updated_at = int(time.time())
+        except Exception:
+            pass
+        time.sleep(AMSTERDAM_POLL_INTERVAL)
+
+
+if AMSTERDAM_SERVERS:
+    threading.Thread(target=_amsterdam_poll_loop, daemon=True).start()
 
 # ─── DB helpers ───────────────────────────────────────────────────────────────
 
@@ -431,22 +621,35 @@ def _server_db_stats(srv_id: str, since: int | None = None) -> dict:
         conn.close()
 
 
-def _demo_recorded_at(path: Path, stat) -> int:
+def _demo_parse_name(path: Path, stat) -> tuple[int, int | None, str]:
+    """Returns (recorded_at, ended_at, map_name).
+
+    ended_at is None if the filename doesn't have a real embedded stop time
+    (i.e. an old recording made before DemoManager.cpp started writing one,
+    or a custom-named demo that was never auto-renamed on stop) - callers
+    should fall back to something reasonable in that case rather than
+    trusting file mtime, which isn't a reliable stand-in (buffered writes on
+    some setups mean mtime lands right next to ctime, not at actual stop time)."""
     match = DEMO_NAME_RE.match(path.name)
-    if match:
+    if not match:
+        # Doesn't match the naming convention at all (custom name via
+        # StartDemoRec with an explicit name) - nothing to parse from it.
+        return int(stat.st_mtime), None, path.stem
+
+    start_date, start_time, end_date, end_time, map_part = match.groups()
+    try:
+        recorded_at = int(time.mktime(datetime.strptime(start_date + start_time, "%Y%m%d%H%M%S").timetuple()))
+    except ValueError:
+        recorded_at = int(stat.st_mtime)
+
+    ended_at = None
+    if end_date and end_time:
         try:
-            dt = datetime.strptime(match.group(1) + match.group(2), "%Y%m%d%H%M%S")
-            return int(time.mktime(dt.timetuple()))
+            ended_at = int(time.mktime(datetime.strptime(end_date + end_time, "%Y%m%d%H%M%S").timetuple()))
         except ValueError:
-            pass
-    return int(stat.st_mtime)
+            ended_at = None
 
-
-def _demo_map_name(path: Path) -> str:
-    match = DEMO_NAME_RE.match(path.name)
-    if match:
-        return match.group(3).replace("_", " ")
-    return path.stem
+    return recorded_at, ended_at, map_part.replace("_", " ")
 
 
 def _demo_files(srv: dict, limit: int | None = None) -> list:
@@ -462,8 +665,13 @@ def _demo_files(srv: dict, limit: int | None = None) -> list:
             continue
         if limit is not None and len(result) >= limit:
             break
-        recorded_at = _demo_recorded_at(f, stat)
-        map_name = _demo_map_name(f)
+        recorded_at, ended_at, map_name = _demo_parse_name(f, stat)
+        if ended_at is None:
+            # No real stop time on this file (recorded before the
+            # DemoManager.cpp fix, or a custom name) - best-effort estimate
+            # rather than a hard guarantee. Clamped both directions so it
+            # can't read as negative or absurdly long.
+            ended_at = min(max(int(stat.st_mtime), recorded_at), recorded_at + DEMO_MAX_PLAUSIBLE_SECONDS)
         result.append({
             "server_id":  srv["id"],
             "filename":   f.name,
@@ -471,7 +679,7 @@ def _demo_files(srv: dict, limit: int | None = None) -> list:
             "title":      _display_map_name(map_name),
             "size_bytes": stat.st_size,
             "recorded_at": recorded_at,
-            "ended_at":   recorded_at + DEMO_PART_SECONDS,
+            "ended_at":   ended_at,
         })
     return result
 
@@ -676,6 +884,30 @@ def _map_summaries(srv: dict, since: int, limit: int) -> list:
         conn.close()
 
 # ─── API routes ───────────────────────────────────────────────────────────────
+
+@app.route("/api/browse")
+def get_browse():
+    """Public FE/SE server list from master.333networks.com - the same list
+    the in-game @browse command reads. Refreshed every few minutes in the
+    background; this just serves the cache."""
+    with _browse_lock:
+        return jsonify({
+            "updated_at": _browse_updated_at,
+            "servers":    list(_browse_cache),
+            "error":      _browse_last_error,
+        })
+
+
+@app.route("/api/browse-42amsterdam")
+def get_browse_amsterdam():
+    """42amsterdam servers, queried directly (see AMSTERDAM_SERVERS above -
+    empty by default until real host/port entries are added there)."""
+    with _amsterdam_lock:
+        return jsonify({
+            "updated_at": _amsterdam_updated_at,
+            "servers":    list(_amsterdam_cache),
+        })
+
 
 @app.route("/api/health")
 def health():
@@ -1086,6 +1318,32 @@ def _require_admin(f):
             abort(401, description="Admin token required")
         return f(*args, **kwargs)
     return wrapper
+
+
+@app.route("/api/admin/watchdog-report", methods=["POST"])
+@_require_admin
+def admin_watchdog_report():
+    """Body JSON: { "server": "srv1", "exit_code": 1 }
+    Called by watchdog.bat right after it relaunches a server (see the
+    DASHBOARD_URL/DASHBOARD_ADMIN_TOKEN fields near the top of that script -
+    blank/disabled by default). Purely informational: logs a distinct event
+    type so you can tell "watchdog caught a crash and relaunched it" apart
+    from the poller's own online/offline detection, which fires independently
+    based on whether the server actually answers a query - this just adds
+    the "and here's what fixed it" half of the picture."""
+    data = request.get_json(force=True) or {}
+    sid = data.get("server")
+    if not any(s["id"] == sid for s in SERVERS):
+        abort(400, description="Unknown server id")
+
+    exit_code = data.get("exit_code")
+    with _cache_lock:
+        _event_log[sid].append({
+            "ts": int(time.time()),
+            "type": "watchdog_restart",
+            "label": f"Restarted by watchdog (exit code {exit_code})",
+        })
+    return jsonify({"ok": True})
 
 
 @app.route("/api/admin/kick", methods=["POST"])
