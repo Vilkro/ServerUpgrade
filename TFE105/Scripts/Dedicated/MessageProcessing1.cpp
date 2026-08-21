@@ -1520,3 +1520,4 @@ BOOL IProcessPacket::OnChatInRequest(INDEX iClient, CNetworkMessage &nmMessage)
   // Return FALSE so the vanilla engine doesn't double-process the packet
   return FALSE;
 };
+

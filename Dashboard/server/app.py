@@ -24,9 +24,11 @@ Run:
   (then open http://localhost:5000)
 """
 
-import os, io, socket, struct, time, threading, json, sqlite3, re, zipfile
+import os, io, socket, struct, subprocess, time, threading, json, sqlite3, re, zipfile
+import psutil   # used by the output-queue watchdog to find/kill a stuck server process
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 from flask import Flask, jsonify, request, send_from_directory, abort, Response, stream_with_context
@@ -37,44 +39,64 @@ from flask_cors import CORS
 # One entry per server you manage.  Edit these to match your setup.
 SERVERS = [
     {
-        "id": "srv1",
+        "id": "fe1",
         "label": "",
         "host": "192.168.10.11",
-        "port": 25646,  # net_iPort from init.ini
-        "db": "D:/CustomTSE/Bin/PlayerStats.db",  # path to this server's PlayerStats.db
-        "demos_dir": "D:/CustomTSE/Demos/server1",  # path to Demos\ folder
-        "maps_dir": "D:/CustomTSE/Maps",  # path to folder containing map pack zips for download
+        "port": 25626,  # net_iPort from init.ini
+        "db": "D:/CustomTFE/Bin/PlayerStats.db",  # path to this server's PlayerStats.db
+        "demos_dir": "D:/CustomTFE/Demos/CustomCoop",  # path to Demos\ folder
+        "maps_dir": "D:/CustomTFE",  # path to folder containing map pack zips for download
         "rcon_pass": "hrtmcftgmkjfgjsrhu",  # net_strAdminPassword from init.ini
+        "log_file": "D:/CustomTFE/Dedicated_CustomCoop.log",  # the log file this server's process writes to
+        "process_match": "D:/CustomTFE/Bin/DedicatedServer_Custom.exe CustomCoop",  # used to find the process among possibly-several server instances
     },
     {
-        "id":       "srv2",
+        "id":       "fe2",
         "label":    "",
-        "host":     "192.168.10.10",
+        "host":     "192.168.10.11",
+        "port":     25636,             # net_iPort from init.ini
+        "db":       "D:/CustomTFE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
+        "demos_dir":"D:/CustomTFE/Demos/rocketjump",              # path to Demos\ folder
+        "maps_dir": "D:/CustomTFE",               # path to folder containing map pack zips for download
+        "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
+        "log_file": "D:/CustomTFE/Dedicated_RocketJump.log",  # the log file this server's process writes to
+        "process_match": "D:/CustomTFE/Bin/DedicatedServer_Custom.exe RocketJump",  # used to find the process among possibly-several server instances
+    },
+    {
+        "id":       "se1",
+        "label":    "",
+        "host":     "192.168.10.11",
+        "port":     25646,             # net_iPort from init.ini
+        "db":       "D:/CustomTSE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
+        "demos_dir":"D:/CustomTSE/Demos/CustomCoop",              # path to Demos\ folder
+        "maps_dir": "D:/CustomTSE",               # path to folder containing map pack zips for download
+        "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
+        "log_file": "D:/CustomTSE/Dedicated_CustomCoop.log",  # the log file this server's process writes to
+        "process_match": "D:/CustomTSE/Bin/DedicatedServer_Custom.exe CustomCoop",  # used to find the process among possibly-several server instances
+    },
+    {
+        "id":       "se2",
+        "label":    "",
+        "host":     "192.168.10.11",
         "port":     25656,             # net_iPort from init.ini
         "db":       "D:/CustomTSE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
-        "demos_dir":"D:/CustomTSE/Demos/server2",              # path to Demos\ folder
-        "maps_dir": "D:/CustomTSE/Maps",               # path to folder containing map pack zips for download
+        "demos_dir":"D:/CustomTSE/Demos/CustomFrag",              # path to Demos\ folder
+        "maps_dir": "D:/CustomTSE",               # path to folder containing map pack zips for download
         "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
+        "log_file": "D:/CustomTSE/Bin/Dedicated_CustomFrag.log",  # the log file this server's process writes to
+        "process_match": "D:/CustomTSE/Bin/DedicatedServer_Custom.exe CustomFrag",  # used to find the process among possibly-several server instances
     },
     {
-        "id":       "srv3",
+        "id":       "se3",
         "label":    "",
         "host":     "192.168.10.11",
         "port":     25666,             # net_iPort from init.ini
         "db":       "D:/CustomTSE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
-        "demos_dir":"D:/CustomTSE/Demos/rocketjump",              # path to Demos\ folder
-        "maps_dir": "D:/CustomTSE/Maps",               # path to folder containing map pack zips for download
+        "demos_dir":"D:/CustomTSE/Demos/RocketJump",              # path to Demos\ folder
+        "maps_dir": "D:/CustomTSE",               # path to folder containing map pack zips for download
         "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
-    },
-    {
-        "id":       "srv4",
-        "label":    "",
-        "host":     "192.168.10.11",
-        "port":     25720,             # net_iPort from init.ini
-        "db":       "D:/CustomTFE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
-        "demos_dir":"D:/CustomTFE/Demos/rocketjump",              # path to Demos\ folder
-        "maps_dir": "D:/CustomTFE/Maps",               # path to folder containing map pack zips for download
-        "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
+        "log_file": "D:/CustomTSE/Dedicated_RocketJump.log",  # the log file this server's process writes to
+        "process_match": "D:/CustomTSE/Bin/DedicatedServer_Custom.exe RocketJump",  # used to find the process among possibly-several server instances
     },
     # Add more servers here:
     # { "id": "srv2", "label": "Custom Maps", "host": "127.0.0.1", "port": 25667, ... },
@@ -286,9 +308,22 @@ def _poll_loop():
                             "from": old_map,
                             "to": new_map,
                         })
+                        # [1111] A successful query is the ground truth that the
+                        # server has genuinely recovered - clear any "stuck"
+                        # state the watchdog set, rather than timing it out
+                        # blindly. If it's still actually broken, this branch
+                        # never runs and the indicator correctly stays on.
+                        if existing.get("stuck") and existing.get("online") is False:
+                            _event_log[sid].append({
+                                "ts": now,
+                                "type": "recovered",
+                                "label": "Recovered after stuck output queue",
+                            })
+
                     _server_cache[sid] = {
                         "online":     True,
                         "queried_at": now,
+                        "stuck":      False,
                         **state,
                     }
                 else:
@@ -327,6 +362,250 @@ def _poll_loop():
 
 
 threading.Thread(target=_poll_loop, daemon=True).start()
+
+# ─── Output-queue watchdog ─────────────────────────────────────────────────────
+# Detects the specific "Socket error during UDP send... WSAEADDRNOTAVAIL" loop:
+# a real engine bug where one undeliverable packet gets stuck at the head of
+# the outgoing queue forever, and the server goes silent for every client at
+# once while spamming the same error every tick. Unlike the GameSpy poller
+# above, this is NOT triggered by "server didn't respond to a query" - that
+# signal is ambiguous with a completely normal map-change restart, which can
+# legitimately take a while to respond. This instead watches the server's own
+# log for the exact repeated error text, which a normal map load never
+# produces, so it doesn't fight your own @map/restart flow.
+#
+# Only takes action if BOTH log_file and process_match are set for a server
+# (see the SERVERS config above) - servers without them are silently skipped,
+# so this is opt-in per server.
+
+WATCHDOG_INTERVAL   = 15     # seconds between checks
+WATCHDOG_ERROR_TEXT = b"Socket error during UDP send"
+WATCHDOG_THRESHOLD  = 20     # this many matches in the newly-written log = stuck
+WATCHDOG_COOLDOWN   = 90     # don't re-trigger for the same server within this many seconds of killing it
+WATCHDOG_PORT_ERROR_TEXT = b"cannot open UDP socket"
+
+_watchdog_offsets = {}   # server_id -> byte offset already read
+_watchdog_last_kill = {}  # server_id -> unix ts of last kill, for the cooldown
+
+
+def _read_new_log_bytes(sid: str, path: str) -> bytes:
+    try:
+        size = os.path.getsize(path)
+    except OSError:
+        return b""
+
+    last_offset = _watchdog_offsets.get(sid, size)
+    if last_offset > size:
+        last_offset = 0
+
+    try:
+        with open(path, "rb") as f:
+            f.seek(last_offset)
+            data = f.read()
+    except OSError:
+        return b""
+
+    _watchdog_offsets[sid] = size
+    return data
+
+
+def _find_server_process(match_text: str, exclude_pid: int = None):
+    matches = []
+
+    for p in psutil.process_iter(["pid", "cmdline"]):
+        try:
+            if exclude_pid and p.info["pid"] == exclude_pid:
+                continue
+
+            cmdline = " ".join(p.info.get("cmdline") or [])
+
+            if match_text.lower() in cmdline.lower():
+                matches.append(p)
+
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+    if len(matches) > 1:
+        print(
+            f"[watchdog] WARNING: {len(matches)} processes matched "
+            f"'{match_text}' - not killing anything, "
+            f"fix process_match to be more specific."
+        )
+        return None
+
+    return matches[0] if matches else None
+
+
+def _find_pid_holding_udp_port(port: int):
+    try:
+        output = subprocess.check_output(
+            ["netstat", "-ano", "-p", "UDP"],
+            text=True,
+            timeout=5,
+        )
+    except Exception as e:
+        print(f"[watchdog] netstat failed: {e}")
+        return None
+
+    port_suffix = f":{port}"
+
+    for line in output.splitlines():
+        parts = line.split()
+
+        if len(parts) < 4 or parts[0] != "UDP":
+            continue
+
+        local_addr, pid_str = parts[1], parts[-1]
+
+        if local_addr.endswith(port_suffix) and pid_str.isdigit():
+            return int(pid_str)
+
+    return None
+
+
+def _looks_like_our_game_server(pid: int) -> bool:
+    try:
+        p = psutil.Process(pid)
+        name = (p.name() or "").lower()
+        cmdline = " ".join(p.cmdline() or []).lower()
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return False
+
+    if "sam_ds" in name or "serioussam" in name:
+        return True
+
+    return any(
+        srv.get("process_match", "").lower() in cmdline
+        for srv in SERVERS
+        if srv.get("process_match")
+    )
+
+
+def _output_queue_watchdog_loop():
+    while True:
+        now = time.time()
+
+        for srv in SERVERS:
+            sid = srv["id"]
+            log_file = srv.get("log_file")
+            match_text = srv.get("process_match")
+
+            if not log_file or not match_text:
+                continue
+
+            if now - _watchdog_last_kill.get(sid, 0) < WATCHDOG_COOLDOWN:
+                continue
+
+            new_bytes = _read_new_log_bytes(sid, log_file)
+
+            if not new_bytes:
+                continue
+
+            # Port startup failure
+            if WATCHDOG_PORT_ERROR_TEXT in new_bytes:
+                port = srv["port"]
+                holder_pid = _find_pid_holding_udp_port(port)
+
+                if holder_pid and _looks_like_our_game_server(holder_pid):
+                    try:
+                        psutil.Process(holder_pid).kill()
+                        print(
+                            f"[watchdog] {sid}: killed PID "
+                            f"{holder_pid} holding port {port}"
+                        )
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+
+                proc = _find_server_process(
+                    match_text,
+                    exclude_pid=holder_pid,
+                )
+
+                if proc:
+                    try:
+                        proc.kill()
+                        print(
+                            f"[watchdog] {sid}: killed zombie PID "
+                            f"{proc.pid} for relaunch"
+                        )
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+
+                _watchdog_last_kill[sid] = now
+
+                with _cache_lock:
+                    existing = _server_cache.get(sid, {})
+                    _server_cache[sid] = {
+                        **existing,
+                        "stuck": True,
+                    }
+
+                    _event_log[sid].append({
+                        "ts": int(now),
+                        "type": "stuck",
+                        "label": (
+                            f"Port {port} was in use at startup - "
+                            "cleared and restarting"
+                        ),
+                    })
+
+                continue
+
+            # Output queue jam
+            count = new_bytes.count(WATCHDOG_ERROR_TEXT)
+
+            if count < WATCHDOG_THRESHOLD:
+                continue
+
+            proc = _find_server_process(match_text)
+
+            if not proc:
+                print(
+                    f"[watchdog] {sid}: {count} repeated socket errors "
+                    f"detected but no matching process found for "
+                    f"'{match_text}'"
+                )
+                continue
+
+            print(
+                f"[watchdog] {sid}: {count} repeated socket errors - "
+                f"killing PID {proc.pid}"
+            )
+
+            try:
+                proc.kill()
+            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                print(
+                    f"[watchdog] {sid}: failed to kill PID "
+                    f"{proc.pid}: {e}"
+                )
+                continue
+
+            _watchdog_last_kill[sid] = now
+
+            with _cache_lock:
+                existing = _server_cache.get(sid, {})
+                _server_cache[sid] = {
+                    **existing,
+                    "stuck": True,
+                }
+
+                _event_log[sid].append({
+                    "ts": int(now),
+                    "type": "stuck",
+                    "label": (
+                        f"Output queue stuck ({count} repeated errors) "
+                        "- process killed for restart"
+                    ),
+                })
+
+        time.sleep(WATCHDOG_INTERVAL)
+
+
+threading.Thread(
+    target=_output_queue_watchdog_loop,
+    daemon=True,
+).start()
 
 # ─── 333networks public server list ("All Servers" browse tab) ───────────────
 # Same master list the in-game @browse command reads (Core/Query/PlayersBrowse.cpp),
@@ -505,10 +784,27 @@ def _db(srv_id: str):
     path = Path(srv["db"]).resolve()
     if not path.exists():
         return None
-    conn = sqlite3.connect(str(path), check_same_thread=False, timeout=5.0)
+    uri = "file:" + quote(str(path).replace("\\", "/"), safe="/:") + "?mode=ro"
+    conn = sqlite3.connect(uri, uri=True, check_same_thread=False, timeout=5.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA query_only = 1")
     return conn
+
+
+def _unique_db_servers(server_filter: str | None = None) -> list:
+    """Configured servers whose DB paths exist, deduped by resolved DB file."""
+    result = []
+    seen = set()
+    for srv in SERVERS:
+        if server_filter and srv["id"] != server_filter:
+            continue
+        path = Path(srv["db"]).resolve()
+        key = str(path).casefold()
+        if key in seen or not path.exists():
+            continue
+        seen.add(key)
+        result.append(srv)
+    return result
 
 
 def _db_any():
@@ -518,6 +814,14 @@ def _db_any():
         if conn:
             return conn
     return None
+
+
+def _table_exists(conn, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1;",
+        (table_name,),
+    ).fetchone()
+    return row is not None
 
 
 def _player_lookup(srv_id: str) -> dict:
@@ -883,6 +1187,233 @@ def _map_summaries(srv: dict, since: int, limit: int) -> list:
     finally:
         conn.close()
 
+
+def _marks_snapshot(server_filter: str | None, selected_map: str | None,
+                    limit: int, recent_limit: int, rare_limit: int) -> dict:
+    known_marks = set()
+    known_by_map = {}
+    player_marks = {}
+    player_map_marks = {}
+    player_names = {}
+    recent = []
+    rare_finders = {}
+    map_latest = {}
+
+    for srv in _unique_db_servers(server_filter):
+        conn = _db(srv["id"])
+        if not conn:
+            continue
+        try:
+            if not _table_exists(conn, "marks_collected"):
+                continue
+
+            rows = conn.execute("""
+                SELECT
+                    mc.guid,
+                    COALESCE(p.name, mc.guid) AS name,
+                    mc.mark,
+                    COALESCE(mc.map, '') AS map,
+                    mc.collected_at
+                FROM marks_collected mc
+                LEFT JOIN players p ON p.guid = mc.guid
+            """).fetchall()
+        finally:
+            conn.close()
+
+        for row in rows:
+            guid = row["guid"] or ""
+            mark = row["mark"] or ""
+            map_name = row["map"] or ""
+            if not guid or not mark:
+                continue
+
+            known_marks.add(mark)
+            known_by_map.setdefault(map_name, set()).add(mark)
+            player_marks.setdefault(guid, set()).add(mark)
+            player_map_marks.setdefault((guid, map_name), set()).add(mark)
+            rare_finders.setdefault((map_name, mark), set()).add(guid)
+
+            if row["name"]:
+                player_names[guid] = row["name"]
+
+            ts = _safe_int(row["collected_at"])
+            map_latest[map_name] = max(map_latest.get(map_name, 0), ts)
+            recent.append({
+                "server_id": srv["id"],
+                "server_label": srv.get("label", ""),
+                "guid": guid,
+                "name": row["name"] or guid,
+                "mark": mark,
+                "map": map_name,
+                "map_title": _display_map_name(map_name),
+                "collected_at": ts,
+            })
+
+    maps = []
+    for map_name, marks in known_by_map.items():
+        maps.append({
+            "map": map_name,
+            "title": _display_map_name(map_name),
+            "known_marks": len(marks),
+            "last_seen": map_latest.get(map_name, 0),
+        })
+    maps.sort(key=lambda m: (-m["known_marks"], m["title"].casefold(), m["map"].casefold()))
+
+    if not selected_map and maps:
+        selected_map = maps[0]["map"]
+    selected_known = len(known_by_map.get(selected_map or "", set()))
+
+    overall = []
+    for guid, marks in player_marks.items():
+        overall.append({
+            "guid": guid,
+            "name": player_names.get(guid, guid),
+            "marks_found": len(marks),
+            "known_marks": len(known_marks),
+            "completion": round((len(marks) / len(known_marks)) * 100, 1) if known_marks else 0,
+        })
+    overall.sort(key=lambda p: (-p["marks_found"], _clean_sam_text(p["name"]).casefold()))
+
+    by_map = []
+    if selected_map is not None:
+        for (guid, map_name), marks in player_map_marks.items():
+            if map_name != selected_map:
+                continue
+            by_map.append({
+                "guid": guid,
+                "name": player_names.get(guid, guid),
+                "map": map_name,
+                "map_title": _display_map_name(map_name),
+                "marks_found": len(marks),
+                "known_marks": selected_known,
+                "completion": round((len(marks) / selected_known) * 100, 1) if selected_known else 0,
+            })
+    by_map.sort(key=lambda p: (-p["marks_found"], _clean_sam_text(p["name"]).casefold()))
+
+    recent.sort(key=lambda r: r["collected_at"], reverse=True)
+
+    rarest = []
+    for (map_name, mark), finders in rare_finders.items():
+        rarest.append({
+            "mark": mark,
+            "map": map_name,
+            "map_title": _display_map_name(map_name),
+            "finders": len(finders),
+        })
+    rarest.sort(key=lambda r: (r["finders"], r["map_title"].casefold(), r["mark"].casefold()))
+
+    return {
+        "known_marks": len(known_marks),
+        "known_maps": len(maps),
+        "selected_map": selected_map or "",
+        "selected_map_known_marks": selected_known,
+        "maps": maps,
+        "overall": overall[:limit],
+        "by_map": by_map[:limit],
+        "recent": recent[:recent_limit],
+        "rarest": rarest[:rare_limit],
+    }
+
+
+def _fragmatch_snapshot(server_filter: str | None, limit: int, recent_limit: int) -> dict:
+    players = {}
+    recent = []
+    totals = {"sessions": 0, "frags": 0, "deaths": 0, "playtime": 0}
+
+    for srv in _unique_db_servers(server_filter):
+        conn = _db(srv["id"])
+        if not conn:
+            continue
+        try:
+            if not _table_exists(conn, "fragmatch_sessions"):
+                continue
+
+            rows = conn.execute("""
+                SELECT
+                    f.guid,
+                    COALESCE(p.name, f.name, f.guid) AS name,
+                    COALESCE(p.country, '') AS country,
+                    f.map,
+                    f.frags,
+                    f.deaths,
+                    f.score,
+                    f.started,
+                    f.ended,
+                    COALESCE(f.duration, CASE WHEN f.ended >= f.started THEN f.ended - f.started ELSE 0 END) AS duration
+                FROM fragmatch_sessions f
+                LEFT JOIN players p ON p.guid = f.guid
+            """).fetchall()
+        finally:
+            conn.close()
+
+        for row in rows:
+            guid = row["guid"] or ""
+            if not guid:
+                continue
+            frags = _safe_int(row["frags"])
+            deaths = _safe_int(row["deaths"])
+            score = _safe_int(row["score"])
+            duration = max(0, _safe_int(row["duration"]))
+            ended = _safe_int(row["ended"])
+            item = players.setdefault(guid, {
+                "guid": guid,
+                "name": row["name"] or guid,
+                "country": row["country"] or "",
+                "sessions": 0,
+                "maps": set(),
+                "frags": 0,
+                "deaths": 0,
+                "score": 0,
+                "playtime": 0,
+                "last_seen": 0,
+            })
+            item["name"] = row["name"] or item["name"]
+            item["country"] = row["country"] or item["country"]
+            item["sessions"] += 1
+            item["maps"].add(row["map"] or "")
+            item["frags"] += frags
+            item["deaths"] += deaths
+            item["score"] += score
+            item["playtime"] += duration
+            item["last_seen"] = max(item["last_seen"], ended)
+
+            totals["sessions"] += 1
+            totals["frags"] += frags
+            totals["deaths"] += deaths
+            totals["playtime"] += duration
+
+            recent.append({
+                "server_id": srv["id"],
+                "server_label": srv.get("label", ""),
+                "guid": guid,
+                "name": row["name"] or guid,
+                "map": row["map"] or "",
+                "map_title": _display_map_name(row["map"]),
+                "frags": frags,
+                "deaths": deaths,
+                "score": score,
+                "duration": duration,
+                "started": _safe_int(row["started"]),
+                "ended": ended,
+            })
+
+    leaders = []
+    for item in players.values():
+        deaths = item["deaths"]
+        leaders.append({
+            **{k: v for k, v in item.items() if k != "maps"},
+            "maps": len([m for m in item["maps"] if m]),
+            "kd": round(item["frags"] / deaths, 2) if deaths else float(item["frags"]),
+        })
+    leaders.sort(key=lambda p: (-p["frags"], p["deaths"], -p["playtime"], _clean_sam_text(p["name"]).casefold()))
+    recent.sort(key=lambda r: r["ended"], reverse=True)
+
+    return {
+        "totals": totals,
+        "leaders": leaders[:limit],
+        "recent": recent[:recent_limit],
+    }
+
 # ─── API routes ───────────────────────────────────────────────────────────────
 
 @app.route("/api/browse")
@@ -1061,6 +1592,44 @@ def get_maps():
             continue
         result.extend(_map_summaries(srv, since, limit))
     return jsonify(result[:limit])
+
+
+@app.route("/api/marks")
+def get_marks():
+    """
+    Raiders of Marks statistics from marks_collected.
+    Known marks are discovered organically from distinct marks_collected.mark
+    values; there is no fixed total or separate marks catalog.
+    Optional query params:
+      ?server=srv1
+      ?map=<raw map path>
+      ?limit=50
+      ?recent=20
+      ?rare=20
+    """
+    server_filter = request.args.get("server")
+    selected_map = request.args.get("map")
+    limit = min(_safe_int(request.args.get("limit"), 50), 500)
+    recent_limit = min(_safe_int(request.args.get("recent"), 20), 100)
+    rare_limit = min(_safe_int(request.args.get("rare"), 20), 100)
+    return jsonify(_marks_snapshot(server_filter, selected_map, limit, recent_limit, rare_limit))
+
+
+@app.route("/api/fragmatch")
+def get_fragmatch():
+    """
+    Fragmatch statistics from fragmatch_sessions.
+    The dashboard only reads this table; it is written by PlayerDB on server
+    disconnect for sessions that were running gam_iStartMode == GM_FRAGMATCH.
+    Optional query params:
+      ?server=srv1
+      ?limit=50
+      ?recent=20
+    """
+    server_filter = request.args.get("server")
+    limit = min(_safe_int(request.args.get("limit"), 50), 500)
+    recent_limit = min(_safe_int(request.args.get("recent"), 20), 100)
+    return jsonify(_fragmatch_snapshot(server_filter, limit, recent_limit))
 
 
 @app.route("/api/players")

@@ -56,6 +56,26 @@ SERVERS = [
         "maps_dir": "D:/CustomTSE/Maps",  # path to folder containing map pack zips for download
         "rcon_pass": "hrtmcftgmkjfgjsrhu",  # net_strAdminPassword from init.ini
     },
+    {
+        "id":       "srv4",
+        "label":    "",
+        "host":     "192.168.10.11",
+        "port":     25720,             # net_iPort from init.ini
+        "db":       "D:/CustomTFE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
+        "demos_dir":"D:/CustomTFE/Demos/rocketjump",              # path to Demos\ folder
+        "maps_dir": "D:/CustomTSE/Maps",               # path to folder containing map pack zips for download
+        "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
+    },
+    {
+        "id":       "srv5",
+        "label":    "",
+        "host":     "192.168.10.11",
+        "port":     25676,             # net_iPort from init.ini
+        "db":       "D:/CustomTSE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
+        "demos_dir":"D:/CustomTSE/Demos/DM",              # path to Demos\ folder
+        "maps_dir": "D:/CustomTSE/Maps",               # path to folder containing map pack zips for download
+        "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
+    },
     # {
     #     "id":    "srv2",
     #     "label": "Custom Maps",

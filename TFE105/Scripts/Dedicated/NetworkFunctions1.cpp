@@ -24,6 +24,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "Query/GeoIP.h"            // 1111
 #include "Query/PlayerDB.h"         // 1111
 #include "Query/PlayersBrowse.h"   // 1111
+#include "Patches/Network.h"   // 1111
 #include <string.h>                 // 1111: strcmp
 
 // Display name used as the sender for server-originated chat messages
@@ -69,6 +70,7 @@ void MapVoteTimeoutCheck(SHELL_FUNC_ARGS); // 1111
 void ExecuteMapChange(SHELL_FUNC_ARGS);    // 1111  fires after the countdown
  
 void ListClients(SHELL_FUNC_ARGS);              // 1111
+void ListClientsLocations(SHELL_FUNC_ARGS);     // 1111
 void VoteForKick(SHELL_FUNC_ARGS);              // 1111
 void VoteForBan(SHELL_FUNC_ARGS);               // 1111
 void BanClientTemp(SHELL_FUNC_ARGS);            // 1111
@@ -115,6 +117,7 @@ void INetwork::Initialize(void) {
   _pShell->DeclareSymbol("user void ExecuteMapChange(void);", &ExecuteMapChange);                                       // 1111
 
   _pShell->DeclareSymbol("user void ListClients(INDEX);",             &ListClients);             // 1111
+  _pShell->DeclareSymbol("user void ListClientsLocations(INDEX);",    &ListClientsLocations);    // 1111
   _pShell->DeclareSymbol("user void VoteForKick(INDEX, INDEX);",      &VoteForKick);             // 1111
   _pShell->DeclareSymbol("user void VoteForBan(INDEX, INDEX);",       &VoteForBan);              // 1111
   _pShell->DeclareSymbol("user void BanClientTemp(INDEX, INDEX);",    &BanClientTemp);           // 1111
@@ -400,6 +403,18 @@ void SayToClient(SHELL_FUNC_ARGS) {
         }
     }
     else {
+        // [1111] Guard against a stale/disconnected iClient. Without this, a
+        // caller (e.g. a ScriptScheduler-delayed message that captured iClient
+        // before the target disconnected) queues a chat packet for a session
+        // slot with no valid destination address, which sendto() rejects with
+        // WSAEADDRNOTAVAIL. The engine never dequeues a packet that fails to
+        // send for any reason other than WSAEWOULDBLOCK - it just retries the
+        // same poisoned packet forever, which blocks the ENTIRE outgoing queue
+        // for every client, not just this one. This check is what actually
+        // prevents that, not just a courtesy skip.
+        if (iClient <= 0 || iClient >= ctSessions || !_pNetwork->ga_srvServer.srv_assoSessions[iClient].sso_bActive) {
+            return;
+        }
         INetwork::SendChatToClient(iClient, strSender, strMessage);
     }
 };
@@ -423,7 +438,7 @@ void SayToAllExcept(SHELL_FUNC_ARGS) {
 };
 
 // ------------------------------------------------------------------- 1111 ----
-// Multilingual chat — selects EN or RU per recipient based on their stored
+// Multilingual chat - selects EN or RU per recipient based on their stored
 // PlayerDB language preference. SayToClient/SayToAllExcept above are left
 // completely untouched; these are separate functions for dual-language call sites.
 // -----------------------------------------------------------------------------
@@ -480,6 +495,10 @@ void SayToClientLang(SHELL_FUNC_ARGS) {
         }
     }
     else {
+        // [1111] Same stale-client guard as SayToClient - see that comment.
+        if (iClient <= 0 || iClient >= ctSessions || !_pNetwork->ga_srvServer.srv_assoSessions[iClient].sso_bActive) {
+            return;
+        }
         INetwork::SendChatToClient(iClient, strSender, SelectLangMessage(iClient, strMessageEN, strMessageRU));
     }
 };
@@ -523,6 +542,11 @@ void KickClientLang(SHELL_FUNC_ARGS) {
         }
     }
     else {
+        // [1111] Same stale-client guard as SayToClient - see that comment.
+        const INDEX ctSessions = _pNetwork->ga_srvServer.srv_assoSessions.Count();
+        if (iClient <= 0 || iClient >= ctSessions || !_pNetwork->ga_srvServer.srv_assoSessions[iClient].sso_bActive) {
+            return;
+        }
         INetwork::SendDisconnectMessage(iClient, SelectLangMessage(iClient, strReasonEN, strReasonRU), FALSE);
     }
 };
@@ -677,6 +701,10 @@ static void PerformMapChange(const CTString& strLevelPath, const CTString& strNa
 
 void ExecuteMapChange(SHELL_FUNC_ARGS) {
     if (!_pNetwork->IsServer()) return;
+
+#if _PATCHCONFIG_ENGINEPATCHES && _PATCHCONFIG_EXTEND_NETWORK
+    FlushAllPlayerStatsToDB();   // 1111: write stats before the forced kick/restart loses them
+#endif
 
     KickAllClientsLang(
         "\n^c45ffb8RESTARTING SERVER^r",
@@ -1025,6 +1053,33 @@ void ListClients(SHELL_FUNC_ARGS) {
         INetwork::SendChatToClient(iTo, "^ced2675", SelectLangMessage(iTo,
             "^cffda59(no other active players)^r",
             "^cffda59(нет других активных игроков)^r"));
+        return;
+    }
+}
+ 
+void ListClientsLocations(SHELL_FUNC_ARGS) {
+    BEGIN_SHELL_FUNC;
+    INDEX iTo = NEXT_ARG(INDEX);
+
+    if (!_pNetwork->IsServer()) return;
+
+    CServer& srv = _pNetwork->ga_srvServer;
+    const INDEX ctSessions = (INDEX)srv.srv_assoSessions.Count();
+    BOOL bAny = FALSE;
+
+    for (INDEX i = 1; i < ctSessions; i++) {
+        if (!srv.srv_assoSessions[i].sso_bActive) continue;
+        GetClientLocationFunc2(i);
+        CTString strLine;
+        strLine.PrintF("^cffda59%s ^c888888- ^cffff90%s^r", GetNameForClient(i).Undecorated().str_String, cmd_strGeoResult);
+        INetwork::SendChatToClient(iTo, "^ced2675", strLine);
+        bAny = TRUE;
+    }
+
+    if (!bAny) {
+        INetwork::SendChatToClient(iTo, "^ced2675", SelectLangMessage(iTo,
+            "^cffda59(no other active players)^r",
+            "^cffda59(íåò äðóãèõ àêòèâíûõ èãðîêîâ)^r"));
         return;
     }
 }
