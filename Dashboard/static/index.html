@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Serious Sam Servers</title>
-<link rel="icon" href="Manface.webp">
+<title>Serious Sam servers</title>
+<link rel="icon" href="icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -155,6 +155,18 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 
 .site-header-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
+.site-footer {
+  border-top: 1px solid var(--line);
+  margin-top: 24px;
+  padding: 14px 0;
+  color: var(--muted);
+  font-size: 11px;
+  font-family: var(--f-mono);
+  text-align: center;
+}
+.site-footer a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.site-footer a:hover { color: var(--amber); }
+
 .tool-btn {
   border: 1px solid var(--line-bright);
   background: var(--panel-raised);
@@ -177,6 +189,54 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   border-color: var(--amber);
   color: var(--amber);
 }
+
+/* Segmented control - two options in one outlined pill. A separate "thumb"
+   layer slides between the two positions on toggle (rather than just
+   swapping colors instantly), with the same amber-for-TSE convention
+   already used by .game-tag.se. */
+.seg-switch {
+  position: relative;
+  display: inline-flex;
+  border: 1px solid var(--line-bright);
+  border-radius: 4px;
+  overflow: hidden;      /* clips everything to the rounded outer corners */
+  background: var(--panel-raised);
+}
+
+.seg-switch-thumb {
+  position: absolute;
+  top: 0; left: 0;
+  width: 50%; height: 100%;
+  background: var(--amber-fill);
+  transition: transform 0.16s ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.seg-switch[data-active="tse"] .seg-switch-thumb { transform: translateX(100%); }
+.seg-switch[data-active="tfe"] .seg-switch-thumb { transform: translateX(0%); }
+
+.seg-switch-btn {
+  position: relative;
+  z-index: 1;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 5px 12px;
+  cursor: pointer;
+  font-family: var(--f-display);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  transition: color 0.16s ease;
+}
+
+.seg-switch-btn + .seg-switch-btn { border-left: 1px solid var(--line-bright); }
+
+.seg-switch-btn:hover:not(.active) { color: var(--paper); }
+
+.seg-switch-btn.active { color: var(--amber-ink); }
 
 .stamp {
   color: var(--muted);
@@ -323,7 +383,42 @@ tbody tr:hover { background: rgba(232,160,32,0.06); }
 .center { text-align: center; }
 .muted { color: var(--muted); }
 .nowrap { white-space: nowrap; }
-.name { font-weight: normal; min-width: 0; }
+.name {
+  font-weight: normal;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+/* Long names roll left on their own to reveal the full text instead of
+   sitting there ellipsis-truncated - no need to hover to discover it.
+   JS (initMarquee in the script below) only adds .marquee to names that
+   actually overflow their column, so ordinary short names are completely
+   unaffected - no animation, nothing to notice. --marquee-distance/
+   -duration/-delay are set per-element by JS: duration scales with how far
+   it has to travel (so short overflows don't crawl and long ones don't
+   whip past), and delay is randomized per element so many rows on the same
+   page don't all visibly scroll in lockstep. Targets .name's single direct
+   child generically (whatever it is) rather than a specific class, so a
+   name with something appended after it - like frags/deaths in the
+   fragmatch roster - scrolls as one unit instead of leaving the suffix
+   stranded outside the visible column. */
+.name > * { display: inline-block; }
+
+@keyframes marquee-scroll {
+  0%, 15%  { transform: translateX(0); }
+  50%, 65% { transform: translateX(calc(-1 * var(--marquee-distance, 0px))); }
+  100%     { transform: translateX(0); }
+}
+.name.marquee > * {
+  animation: marquee-scroll var(--marquee-duration, 6s) ease-in-out infinite;
+  animation-delay: var(--marquee-delay, 0s);
+}
+/* Hovering pauses it mid-scroll so you can actually read whatever position
+   it's caught at, rather than fighting an animation that keeps moving. */
+.name.marquee:hover > * { animation-play-state: paused; }
+
+
 .mono { font-family: var(--table-font); }
 
 .sam-bold { font-weight: 700; }
@@ -821,9 +916,9 @@ canvas { display: block; width: 100%; height: 96px; }
                 <th class="w-toggle center"></th>
                 <th class="w-server-name" data-i18n="server" style="padding-left: 52px;">Server</th>
                 <th class="w-p center" title="Active players" data-i18n="playersCol" data-i18n-title="activePlayersTitle">Players</th>
-                <th class="w-small center" title="Unique players in the last 24 hours" data-i18n="peak" data-i18n-title="peakTitle">Peak</th>
+                <th class="w-small center" title="Highest concurrent players on this server in the last 24 hours" data-i18n="peak" data-i18n-title="peakTitle">Peak</th>
                 <th class="w-map" data-i18n="map">Map</th>
-                <th class="w-small center" title="Maps in the last 24 hours" data-i18n="maps" data-i18n-title="mapsTitle">Maps</th>
+                <th class="w-small center" title="Maps configured for this server" data-i18n="maps" data-i18n-title="mapsTitle">Maps</th>
                 <th class="w-small center" title="Recorded demos" data-i18n="rec" data-i18n-title="recTitle">Rec</th>
                 <th class="w-small center" title="Offline events in the last 24 hours" data-i18n="crash" data-i18n-title="crashTitle">Crash</th>
               </tr>
@@ -837,11 +932,33 @@ canvas { display: block; width: 100%; height: 96px; }
     </div>
   </section>
 
+  <section class="panel" id="activity-panel">
+    <div class="panel-head">
+      <span data-i18n="activity">Activity</span>
+      <span class="count" data-i18n="allServers">All servers</span>
+    </div>
+    <div class="panel-body">
+      <div class="graph-box">
+        <canvas id="activity-canvas"></canvas>
+      </div>
+      <div class="legend">
+        <span><i class="lg-players"></i><span data-i18n="legendPlayerCount">Player count</span></span>
+        <span><i class="lg-map"></i><span data-i18n="legendMapChanged">Map changed</span></span>
+        <span><i class="lg-offline"></i><span data-i18n="legendOffline">Offline</span></span>
+      </div>
+    </div>
+  </section>
+
   <section class="stats-grid" id="stats-grid">
     <section class="panel" id="marks-panel">
       <div class="panel-head">
         <span data-i18n="raidersOfMarks">Raiders of Marks</span>
         <span class="count" id="marks-total"></span>
+		        <div class="seg-switch" id="marks-game-toggle" data-active="tse" style="margin-left:auto;" role="group" aria-label="Game">
+          <div class="seg-switch-thumb"></div>
+          <button class="seg-switch-btn" type="button" data-game="tfe">TFE</button>
+          <button class="seg-switch-btn active" type="button" data-game="tse">TSE</button>
+        </div>
       </div>
       <div class="panel-body">
         <div class="stats-stack">
@@ -865,12 +982,6 @@ canvas { display: block; width: 100%; height: 96px; }
             </div>
             <div id="marks-recent"></div>
           </div>
-          <div class="stat-block">
-            <div class="stat-block-head">
-              <span data-i18n="rarestMarks">Rarest Marks</span>
-            </div>
-            <div id="marks-rarest"></div>
-          </div>
         </div>
       </div>
     </section>
@@ -879,6 +990,11 @@ canvas { display: block; width: 100%; height: 96px; }
       <div class="panel-head">
         <span data-i18n="fragmatchStats">Fragmatch Stats</span>
         <span class="count" id="fragmatch-total"></span>
+		        <div class="seg-switch" id="fragmatch-game-toggle" data-active="tse" style="margin-left:auto;" role="group" aria-label="Game">
+          <div class="seg-switch-thumb"></div>
+          <button class="seg-switch-btn" type="button" data-game="tfe">TFE</button>
+          <button class="seg-switch-btn active" type="button" data-game="tse">TSE</button>
+        </div>
       </div>
       <div class="panel-body">
         <div class="stats-stack">
@@ -898,24 +1014,11 @@ canvas { display: block; width: 100%; height: 96px; }
       </div>
     </section>
   </section>
-
-  <section class="panel" id="activity-panel">
-    <div class="panel-head">
-      <span data-i18n="activity">Activity</span>
-      <span class="count" data-i18n="allServers">All servers</span>
-    </div>
-    <div class="panel-body">
-      <div class="graph-box">
-        <canvas id="activity-canvas"></canvas>
-      </div>
-      <div class="legend">
-        <span><i class="lg-players"></i><span data-i18n="legendPlayerCount">Player count</span></span>
-        <span><i class="lg-map"></i><span data-i18n="legendMapChanged">Map changed</span></span>
-        <span><i class="lg-offline"></i><span data-i18n="legendOffline">Offline</span></span>
-      </div>
-    </div>
-  </section>
 </main>
+
+<footer class="site-footer">
+  <a href="https://github.com/Vilkro/ServerUpgrade" target="_blank" rel="noopener">Server Upgrade on GitHub</a>
+</footer>
 
 <script>
 const API = "";
@@ -923,9 +1026,12 @@ const REFRESH_MS = 15000;
 const DAY = 86400;
 
 const SERVER_LABELS = {
-  "srv3": "SE-",
-  "srv4": "FE-",
-  // "srv2": "FE-",
+  "fe1": "FE-",
+  "fe2": "FE-",
+  "se1": "SE-",
+  "se2": "SE-",
+  "se3": "SE-",
+  // "srv4": "SE-",
 };
 
 // ─── Static map list ──────────────────────────────────────────────────────────
@@ -950,20 +1056,39 @@ const SERVER_LABELS = {
 //   ]
 // };
 const STATIC_MAPS = {
-  "srv1": [
-    { map: "Levels\\1_1_Palenque.wld",          title: "Sierra de Chiapas",
-	  pack: "Serious Sam" },
-    { map: "Levels\\1_2_Palenque.wld",           title: "Valley of the Jaguar" },
-    { map: "Levels\\CustomTSE\\RJ-WORLD.wld",    title: "RJ World",
-      pack: "RJ-World", pack_url: "/api/maps/srv1/FE_COOP_RJ-WORLD.gro" },
-    { map: "Levels\\SuburbsX.wld",               title: "Suburbs X" },
-    { map: "Levels\\SpecialMapVer1.6.wld",       title: "Special Jumps" },
-  ],
-  "srv2": [
-    { map: "Levels\\!_FarmingMap_MrOgurchick_1\\Farming.wld", title: "Majestic Portal: Search for Artifacts",
-	  pack: "MrOgurchick's", pack_url: "/api/maps/srv2/Mr.OgurchickT_TSpecialHyperServerMiningMapV4.gro" },
-  ],
   // TFE Rocket Jump server maps
+  "fe1": [
+    { map: "Levels\\01_Hatshepsut.wld",                  title: "Hatshepsut",
+	  pack: "Serious Sam" },
+    { map: "Levels\\02_SandCanyon.wld",                  title: "Sand Canyon",
+	  pack: "Serious Sam" },
+    { map: "Levels\\03_TombOfRamses.wld",                title: "Tomb of Ramses",
+	  pack: "Serious Sam" },
+    { map: "Levels\\04_ValleyOfTheKings.wld",            title: "Valley Of The Kings",
+	  pack: "Serious Sam" },
+    { map: "Levels\\05_MoonMountains.wld",               title: "Moon Mountains",
+	  pack: "Serious Sam" },
+    { map: "Levels\\06_Oasis.wld",                       title: "Oasis",
+	  pack: "Serious Sam" },
+    { map: "Levels\\07_Dunes.wld",                       title: "Dunes",
+	  pack: "Serious Sam" },
+    { map: "Levels\\08_Suburbs.wld",                     title: "Suburbs",
+	  pack: "Serious Sam" },
+    { map: "Levels\\09_Sewers.wld",                      title: "Sewers",
+	  pack: "Serious Sam" },
+    { map: "Levels\\10_Metropolis.wld",                  title: "Metropolis",
+	  pack: "Serious Sam" },
+    { map: "Levels\\11_AlleyOfSphinxes.wld",             title: "Alley of Sphinxes",
+	  pack: "Serious Sam" },
+    { map: "Levels\\12_Karnak.wld",                      title: "Karnak",
+	  pack: "Serious Sam" },
+    { map: "Levels\\13_Luxor.wld",                       title: "Luxor",
+	  pack: "Serious Sam" },
+    { map: "Levels\\14_SacredYards.wld",                 title: "Sacred Yards",
+	  pack: "Serious Sam" },
+    { map: "Levels\\15_TheGreatPyramid.wld",             title: "The Great Pyramid",
+	  pack: "Serious Sam" },
+  ],
   "fe2": [
     { map: "Levels\\01_Hatshepsut.wld",                  title: "Hatshepsut",
 	  pack: "Serious Sam" },
@@ -1079,7 +1204,9 @@ const STATIC_MAPS = {
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
-let autoRefresh = true;
+let autoRefresh = false;
+let selectedMarksGame = "tse";
+let selectedFragmatchGame = "tse";
 let refreshTimer = null;
 let expandedServers = Object.create(null);
 let sectionState = Object.create(null);
@@ -1088,8 +1215,9 @@ let activityCache = {};
 let eventsCache = {};
 let demoGameCache = {};
 let mapCache = {};
-let marksCache = {};
-let fragmatchCache = {};
+let uniqueTodayCache = 0;
+let marksCache = { tfe: {}, tse: {} };
+let fragmatchCache = { tfe: {}, tse: {} };
 let expandedDemoGames = Object.create(null);
 
 // ─── Language (EN / RU) ────────────────────────────────────────────────────────
@@ -1120,7 +1248,6 @@ const I18N = {
     overallMarks: "Overall Leaderboard",
     mapCompletion: "Map Completion",
     recentMarks: "Recent Pickups",
-    rarestMarks: "Rarest Marks",
     fragmatchStats: "Fragmatch Stats",
     fragLeaders: "Frag Leaders",
     recentFragSessions: "Recent Sessions",
@@ -1136,10 +1263,10 @@ const I18N = {
     playersCol: "Players",
     activePlayersTitle: "Active players",
     peak: "Peak",
-    peakTitle: "Unique players in the last 24 hours",
+    peakTitle: "Highest concurrent players on this server in the last 24 hours",
     map: "Map",
     maps: "Maps",
-    mapsTitle: "Maps in the last 24 hours",
+    mapsTitle: "Maps configured for this server",
     rec: "Rec",
     recTitle: "Recorded demos",
     crash: "Crash",
@@ -1159,10 +1286,10 @@ const I18N = {
     playerObserver: "Player / Observer",
     total: "Total",
     mapPack: "MapPack",
-    runs: "Runs",
+    runs: "matches",
     playtime: "Playtime",
     marks: "Marks",
-    known: "Known",
+    known: "marks",
     complete: "Complete",
     mark: "Mark",
     picked: "Picked",
@@ -1218,7 +1345,6 @@ const I18N = {
     overallMarks: "Общий рейтинг",
     mapCompletion: "Прогресс карты",
     recentMarks: "Последние метки",
-    rarestMarks: "Редкие метки",
     fragmatchStats: "Fragmatch статистика",
     fragLeaders: "Лидеры фрагов",
     recentFragSessions: "Последние сессии",
@@ -1234,10 +1360,10 @@ const I18N = {
     playersCol: "Игроки",
     activePlayersTitle: "Активные игроки",
     peak: "Пик",
-    peakTitle: "Уникальных игроков за последние 24 часа",
+    peakTitle: "Максимум одновременных игроков на этом сервере за последние 24 часа",
     map: "Карта",
-    maps: "Карты",
-    mapsTitle: "Карт за последние 24 часа",
+    maps: "Карт",
+    mapsTitle: "Карт, настроенных для этого сервера",
     rec: "Записи",
     recTitle: "Записанные демо",
     crash: "Сбои",
@@ -1257,15 +1383,15 @@ const I18N = {
     playerObserver: "Игрок / Наблюдатель",
     total: "Всего",
     mapPack: "Пак карт",
-    runs: "Игр",
+    runs: "Матчей",
     playtime: "Время игры",
     marks: "Метки",
-    known: "Известно",
+    known: "марок",
     complete: "Прогресс",
     mark: "Метка",
     picked: "Найдена",
     finders: "Нашли",
-    frags: "Фраги",
+    frags: "Фрагов",
     deaths: "Смерти",
     score: "Счёт",
     kd: "K/D",
@@ -1337,9 +1463,10 @@ const el = {
   marksOverallCount: document.getElementById("marks-overall-count"),
   marksOverall: document.getElementById("marks-overall"),
   marksMapSelect: document.getElementById("marks-map-select"),
+  marksGameToggle: document.getElementById("marks-game-toggle"),
+  fragmatchGameToggle: document.getElementById("fragmatch-game-toggle"),
   marksMap: document.getElementById("marks-map"),
   marksRecent: document.getElementById("marks-recent"),
-  marksRarest: document.getElementById("marks-rarest"),
   fragmatchTotal: document.getElementById("fragmatch-total"),
   fragmatchLeaders: document.getElementById("fragmatch-leaders"),
   fragmatchRecent: document.getElementById("fragmatch-recent"),
@@ -1620,29 +1747,25 @@ function mapTitle(value) {
   return last.replace(/_/g, " ") || "--";
 }
 
-// Marker/checkpoint entities show up in the player-observer list named
-// "MRK_<map name>_<friendly name>" (the mapper's own naming convention, used
-// to keep marker names organized/unique per map) - only the part after the
-// SECOND underscore is meant to be shown. e.g. "MRK_Sierra De Chiapas_Example"
-// -> "Example". Real player names never take this exact shape, so this is
-// safe to run unconditionally on every name without risk of mangling one.
-function stripMarkerPrefix(value) {
-  const raw = String(value || "");
-  if (!raw.startsWith("MRK_")) return raw;
-  const parts = raw.split("_");
-  if (parts.length < 3) return raw;  // doesn't actually have two underscores - leave it alone
-  return parts.slice(2).join("_");
+function _mapBasename(value) {
+  return String(value || "").replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
 }
 
-// Look up the friendly map title from the maps cache (which has server-supplied
-// display names like "Valley of the Jaguar"), falling back to mapTitle().
+// Look up the friendly map title, preferring your manually curated
+// STATIC_MAPS entry (most reliable - never a raw/auto-generated name), then
+// the live maps cache (server-supplied names), then the automatic fallback.
 function resolveMapTitle(sid, rawMapname) {
   if (!rawMapname) return "--";
-  const basename = String(rawMapname).replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
+  const basename = _mapBasename(rawMapname);
+
+  const staticList = STATIC_MAPS[sid] || [];
+  for (const m of staticList) {
+    if (_mapBasename(m.map) === basename && m.title) return m.title;
+  }
+
   const cached = mapCache[sid] || [];
   for (const m of cached) {
-    const cacheBase = String(m.map || "").replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
-    if (cacheBase === basename && m.title) return m.title;
+    if (_mapBasename(m.map) === basename && m.title) return m.title;
   }
   return mapTitle(rawMapname);
 }
@@ -1703,8 +1826,42 @@ function pct(value) {
 
 function kdText(frags, deaths) {
   const d = num(deaths);
-  if (!d) return num(frags) ? String(num(frags).toFixed(0)) : "0";
+  if (!d) return num(frags).toFixed(2);
   return (num(frags) / d).toFixed(2);
+}
+
+// Long player names roll left on their own to reveal the full text instead
+// of just clipping - no hover needed to discover it. Applied via a
+// MutationObserver (see bottom of file) rather than being sprinkled into
+// every render function individually, so it automatically covers every
+// current name table AND anything rendered later (lazily-expanded server
+// rows, demo game rosters, any future table) without needing a matching
+// call added at each call site. Only touches names that actually overflow
+// their column - short ones are completely untouched.
+function initMarquee(nameEl) {
+  const inner = nameEl.firstElementChild;   // whatever's actually in there - a plain name, or name + a suffix like frags/deaths
+  if (!inner) return;
+  // Layout needs a tick to settle after the innerHTML swap that created
+  // this element before scrollWidth/clientWidth are trustworthy.
+  requestAnimationFrame(() => {
+    const overflow = nameEl.scrollWidth - nameEl.clientWidth;
+    if (overflow > 1) {
+      // Constant scroll speed rather than a fixed duration, so a barely-
+      // clipped name doesn't crawl and a very long one doesn't whip past.
+      const travelTime = Math.max(1.2, overflow / 40);
+      // Full cycle = there and back, plus a beat to actually read each end.
+      const cycle = travelTime * 2 + 3;
+      nameEl.classList.add("marquee");
+      nameEl.style.setProperty("--marquee-distance", overflow + "px");
+      nameEl.style.setProperty("--marquee-duration", cycle.toFixed(2) + "s");
+      // A negative delay starts the animation partway through its own cycle
+      // immediately, so several overflowing rows on the same page desync
+      // right away instead of all visibly scrolling in lockstep.
+      nameEl.style.setProperty("--marquee-delay", (-Math.random() * cycle).toFixed(2) + "s");
+    } else {
+      nameEl.classList.remove("marquee");
+    }
+  });
 }
 
 async function getJson(path, fallback, required) {
@@ -1717,8 +1874,8 @@ async function getJson(path, fallback, required) {
 }
 
 async function loadMarks(mapName) {
-  const qs = mapName ? "&map=" + encodeURIComponent(mapName) : "";
-  marksCache = await getJson("/api/marks?limit=50&recent=20&rare=20" + qs, {}, false);
+  const mapQs = mapName ? "&map=" + encodeURIComponent(mapName) : "";
+  marksCache[selectedMarksGame] = await getJson("/api/marks?limit=50&recent=20" + mapQs + "&family=" + selectedMarksGame, {}, false);
   renderMarks();
 }
 
@@ -1754,16 +1911,15 @@ function tableEmpty(message) {
 }
 
 function renderMarks() {
-  const data = marksCache || {};
+  const data = marksCache[selectedMarksGame] || {};
   const overall = data.overall || [];
   const byMap = data.by_map || [];
   const recent = data.recent || [];
-  const rarest = data.rarest || [];
   const maps = data.maps || [];
   const selectedMap = data.selected_map || "";
   const knownMarks = num(data.known_marks);
 
-  el.marksTotal.textContent = knownMarks ? knownMarks + " " + t("known") + " · " + num(data.known_maps) + " " + t("maps").toLowerCase() : "";
+  el.marksTotal.textContent = knownMarks ? num(data.known_maps) + " " + t("maps").toLowerCase() + " · " + knownMarks + " " + t("known") : "";
   el.marksOverallCount.textContent = overall.length ? overall.length + " " + t("playersCol").toLowerCase() : "";
 
   if (el.marksMapSelect) {
@@ -1823,23 +1979,14 @@ function renderMarks() {
       return '<tr>' +
         '<td><div class="name sam-name" style="padding-left: 6px;" title="' + html(name) + '">' + samText(r.name, name) + '</div></td>' +
         '<td title="' + html(r.mark) + '">' + html(r.mark) + '</td>' +
-        '<td title="' + html(r.map) + '">' + html(r.map_title || mapTitle(r.map)) + '</td>' +
+        '<td title="' + html(r.map) + '">' + html(resolveMapTitle(r.server_id, r.map)) + '</td>' +
         '<td class="nowrap mono">' + html(fmtDate(r.collected_at)) + '</td>' +
       '</tr>';
     }).join("") + '</tbody></table></div>' : tableEmpty(t("noMarksYet"));
-
-  el.marksRarest.innerHTML = rarest.length ? '<div class="table-scroll"><table class="compact-table"><thead><tr>' +
-    '<th>' + html(t("mark")) + '</th><th>' + html(t("map")) + '</th><th class="w-stat right">' + html(t("finders")) + '</th>' +
-    '</tr></thead><tbody>' +
-    rarest.map(r => '<tr>' +
-      '<td title="' + html(r.mark) + '">' + html(r.mark) + '</td>' +
-      '<td title="' + html(r.map) + '">' + html(r.map_title || mapTitle(r.map)) + '</td>' +
-      '<td class="right mono">' + html(num(r.finders)) + '</td>' +
-    '</tr>').join("") + '</tbody></table></div>' : tableEmpty(t("noMarksYet"));
 }
 
 function renderFragmatch() {
-  const data = fragmatchCache || {};
+  const data = fragmatchCache[selectedFragmatchGame] || {};
   const totals = data.totals || {};
   const leaders = data.leaders || [];
   const recent = data.recent || [];
@@ -1862,17 +2009,23 @@ function renderFragmatch() {
     }).join("") + '</tbody></table></div>' : tableEmpty(t("noFragmatchYet"));
 
   el.fragmatchRecent.innerHTML = recent.length ? '<div class="table-scroll"><table class="compact-table"><thead><tr>' +
-    '<th>' + html(t("player")) + '</th><th style="width: 100px;">' + html(t("map")) + '</th><th class="w-stat right">' + html(t("frags")) + '</th><th class="w-stat right">' + html(t("deaths")) + '</th><th class="w-wide-stat right" style="width: 70px;">' + html(t("duration")) + '</th><th class="w-time right" style="width: 100px;">' + html(t("last")) + '</th>' +
+    '<th>' + html(t("player")) + '</th><th style="width: 100px;">' + html(t("map")) + '</th><th class="w-wide-stat right" style="width: 70px;">' + html(t("duration")) + '</th><th class="w-time right" style="width: 100px;">' + html(t("last")) + '</th>' +
     '</tr></thead><tbody>' +
-    recent.map(r => {
-      const name = cleanSam(r.name) || t("player");
+    recent.map(g => {
+      // Games are pre-grouped server-side: players who overlapped in time on
+      // the same server+map show up as one row's roster instead of separate
+      // duplicate-looking rows.
+      const roster = (g.players || []).map(p => {
+        const name = cleanSam(p.name) || t("player");
+                return '<div class="name sam-name" title="' + html(name) + ' (' + html(num(p.frags)) + '/' + html(num(p.deaths)) + ')">' +
+          '<span class="marquee-unit">' + samText(p.name, name) +
+          ' <span class="mono" style="opacity:.7">(' + html(num(p.frags)) + '/' + html(num(p.deaths)) + ')</span></span></div>';
+      }).join("");
       return '<tr>' +
-        '<td><div class="name sam-name" title="' + html(name) + '">' + samText(r.name, name) + '</div></td>' +
-        '<td title="' + html(r.map) + '">' + html(r.map_title || mapTitle(r.map)) + '</td>' +
-        '<td class="right mono">' + html(num(r.frags)) + '</td>' +
-        '<td class="right mono">' + html(num(r.deaths)) + '</td>' +
-        '<td class="right mono">' + html(hms(r.duration)) + '</td>' +
-        '<td class="right nowrap mono">' + html(fmtDate(r.ended)) + '</td>' +
+        '<td>' + roster + '</td>' +
+        '<td title="' + html(g.map) + '">' + html(resolveMapTitle(g.server_id, g.map)) + '</td>' +
+        '<td class="right mono">' + html(hms(g.duration)) + '</td>' +
+        '<td class="right nowrap mono">' + html(fmtDate(g.ended)) + '</td>' +
       '</tr>';
     }).join("") + '</tbody></table></div>' : tableEmpty(t("noFragmatchYet"));
 }
@@ -1896,7 +2049,7 @@ function renderOnlinePlayers(servers) {
   }
 
   el.onlineBody.innerHTML = players.map((p, index) => {
-    const rawName = stripMarkerPrefix(p.name);
+    const rawName = p.name;
 	const name = cleanSam(rawName) || t("player");
     return '<tr>' +
       '<td class="center">' + (index + 1) + '</td>' +
@@ -1912,12 +2065,11 @@ function renderHud(servers) {
   const onlineCount = servers.filter(s => s.online).length;
   const totalPlayers = servers.reduce((sum, s) => sum + num(s.numplayers), 0);
   const totalSlots = servers.reduce((sum, s) => sum + num(s.maxplayers), 0);
-  const uniqueToday = servers.reduce((sum, s) => sum + num(s.total_players_today), 0);
 
   el.hudOnline.innerHTML = '<span class="of">' + onlineCount + '/' + servers.length + '</span>';
   el.hudOnline.className = "hud-stat-value " + (onlineCount === servers.length && servers.length ? "state-ok" : onlineCount === 0 ? "state-alert" : "");
   el.hudPlayers.textContent = totalPlayers;
-  el.hudPeak.textContent = uniqueToday;
+  el.hudPeak.textContent = num(uniqueTodayCache);
   el.hudSlots.textContent = totalSlots;
 }
 
@@ -1945,9 +2097,9 @@ function renderServers(servers) {
       '<td class="center toggle-cell"><button class="toggle-btn ' + (open ? "open" : "") + '" type="button" data-server-toggle="' + html(sid) + '" title="' + html(t("toggleDetails")) + '"><span class="chev"></span></button></td>' +
       '<td><div class="server-name"><span class="status-dot ' + statusClass + '" title="' + html(statusTitle) + '"></span><span class="server-name-text" title="' + html(server.host + ":" + server.port) + '">' + (SERVER_LABELS[sid] ? '<span class="server-name-prefix">' + html(SERVER_LABELS[sid]) + '</span>' : '') + samText(server.hostname) + '</span></div></td>' +
       '<td class="center"><div class="nowrap mono">' + current + "/" + max + '</div><div class="meter"><span style="width:' + fill + '%"></span></div></td>' +
-      '<td class="center mono">' + html(num(server.total_players_today)) + '</td>' +
+      '<td class="center mono">' + html(num(server.peak_players)) + '</td>' +
       '<td title="' + html(cleanSam(server.mapname || "")) + '">' + samText(resolveMapTitle(sid, server.mapname)) + '</td>' +
-      '<td class="center mono">' + html(num(server.active_maps_count)) + '</td>' +
+      '<td class="center mono">' + html(num((STATIC_MAPS[sid] || []).length)) + '</td>' +
       '<td class="center mono">' + html(num(server.demo_game_count, (demoGameCache[sid] || []).length || server.demo_count)) + '</td>' +
       '<td class="center mono">' + html(num(server.crash_count)) + '</td>' +
       '</tr>' +
@@ -1977,12 +2129,15 @@ function renderSection(server, name, title, count, defaultOpen, body) {
     '</div>';
 }
 
-// Merge live map stats with the static map list for a server.
-// Static entries that have no live stats show with zero counts.
-// Live entries not in the static list are appended at the end.
+// Restrict live map stats to the static map list for a server (an allowlist,
+// not just a name-lookup): only maps you've explicitly listed for a server
+// show up in Active Maps, with your curated title. Anything in the live DB
+// that isn't in the static list is dropped rather than shown with a raw name.
+// A server with no static list entry shows an empty Active Maps section
+// rather than falling back to raw DB data.
 function mergeMapsWithStatic(sid, liveMaps) {
-  const staticList = (STATIC_MAPS[sid] || []).slice();
-  if (!staticList.length) return liveMaps;
+  const staticList = STATIC_MAPS[sid] || [];
+  if (!staticList.length) return [];
 
   // Index live maps by basename for fast lookup
   const liveByBase = Object.create(null);
@@ -1991,26 +2146,13 @@ function mergeMapsWithStatic(sid, liveMaps) {
     liveByBase[base] = m;
   }
 
-  const result = [];
-  const seenBase = Object.create(null);
-
-  for (const s of staticList) {
+  return staticList.map(s => {
     const base = String(s.map || "").replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
-    seenBase[base] = true;
     const live = liveByBase[base];
-    result.push(live
+    return live
       ? { ...live, title: s.title || live.title, pack: s.pack || "", pack_url: s.pack_url || "" }  // prefer static title/pack
-      : { map: s.map, title: s.title, pack: s.pack || "", pack_url: s.pack_url || "", players: 0, sessions: 0, playtime: 0, last_seen: null }
-    );
-  }
-
-  // Append any live maps not in the static list
-  for (const m of liveMaps) {
-    const base = String(m.map || "").replace(/\//g, "\\").split("\\").pop().replace(/\.wld$/i, "").toLowerCase();
-    if (!seenBase[base]) result.push(m);
-  }
-
-  return result;
+      : { map: s.map, title: s.title, pack: s.pack || "", pack_url: s.pack_url || "", players: 0, sessions: 0, playtime: 0, last_seen: null };
+  });
 }
 
 function renderServerDetail(server) {
@@ -2037,7 +2179,7 @@ function renderPlayersTable(players) {
     '<th class="w-small center">' + html(t("hash")) + '</th><th>' + html(t("playerObserver")) + '</th><th class="w-country">' + html(t("country")) + '</th><th class="w-ping right">' + html(t("ping")) + '</th><th class="w-time right">' + html(t("total")) + '</th>' +
     '</tr></thead><tbody>' +
     players.map((p, i) => {
-      const rawName = stripMarkerPrefix(p.name);
+      const rawName = p.name;
 	  const name = cleanSam(rawName) || t("player");
       return '<tr>' +
         '<td class="center">' + (i + 1) + '</td>' +
@@ -2154,7 +2296,7 @@ function renderDemoGameDetail(server, game) {
     '<th><div class="presence-col-head">' + presenceHeader + '</div></th>' +
     '</tr></thead><tbody>' +
     players.map((p, i) => {
-	  const rawName = stripMarkerPrefix(p.name);
+	  const rawName = p.name;
 	  const name = cleanSam(rawName) || t("player");
       return '<tr>' +
         '<td class="center">' + (i + 1) + '</td>' +
@@ -2329,16 +2471,17 @@ async function refresh() {
   el.stamp.textContent = t("refreshing");
   try {
     const since = Math.floor(Date.now() / 1000) - DAY;
-    const selectedMarkMap = el.marksMapSelect ? el.marksMapSelect.value : "";
-    const marksPath = "/api/marks?limit=50&recent=20&rare=20" + (selectedMarkMap ? "&map=" + encodeURIComponent(selectedMarkMap) : "");
-    const [servers, activity, events, demoGames, maps, marks, fragmatch] = await Promise.all([
+    const [servers, activity, events, demoGames, maps, marksTfe, marksTse, fragTfe, fragTse, uniqueToday] = await Promise.all([
       getJson("/api/servers", [], true),
       getJson("/api/activity", {}, false),
       getJson("/api/events", {}, false),
       getJson("/api/demo-games?limit=500", [], false),
       getJson("/api/maps?since=" + since + "&limit=500", [], false),
-      getJson(marksPath, {}, false),
-      getJson("/api/fragmatch?limit=50&recent=20", {}, false)
+      getJson("/api/marks?limit=50&recent=20&family=tfe", {}, false),
+      getJson("/api/marks?limit=50&recent=20&family=tse", {}, false),
+      getJson("/api/fragmatch?limit=50&recent=10&family=tfe", {}, false),
+      getJson("/api/fragmatch?limit=50&recent=10&family=tse", {}, false),
+      getJson("/api/unique-today", {}, false)
     ]);
 
     lastServers = Array.isArray(servers) ? servers : [];
@@ -2346,8 +2489,11 @@ async function refresh() {
     eventsCache = events || {};
     demoGameCache = groupByServer(demoGames || []);
     mapCache = groupByServer(maps || []);
-    marksCache = marks || {};
-    fragmatchCache = fragmatch || {};
+    // Both games' data lives in the cache at once now - setGame() just
+    // switches which half of it renders, no fetch involved.
+    marksCache = { tfe: marksTfe || {}, tse: marksTse || {} };
+    fragmatchCache = { tfe: fragTfe || {}, tse: fragTse || {} };
+    uniqueTodayCache = (uniqueToday && uniqueToday.count) || 0;
 
     renderHud(lastServers);
     renderOnlinePlayers(lastServers);
@@ -2375,12 +2521,66 @@ el.autoBtn.addEventListener("click", () => setAutoRefresh(!autoRefresh));
 if (el.marksMapSelect) {
   el.marksMapSelect.addEventListener("change", () => loadMarks(el.marksMapSelect.value));
 }
+
+// Independent TFE/TSE segmented switches for the marks and fragmatch panels.
+// Both games' data is already loaded (see refresh()), so switching either
+// one is instant - no fetch, no waiting - and the two panels no longer have
+// to agree on the same game, since there's no longer a reason to force that.
+function applyGameToggleUI(group, game) {
+  if (!group) return;
+  group.dataset.active = game;   // slides .seg-switch-thumb via CSS
+  group.querySelectorAll(".seg-switch-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.game === game);
+  });
+}
+function setMarksGame(game) {
+  selectedMarksGame = game;
+  applyGameToggleUI(el.marksGameToggle, game);
+  renderMarks();
+}
+function setFragmatchGame(game) {
+  selectedFragmatchGame = game;
+  applyGameToggleUI(el.fragmatchGameToggle, game);
+  renderFragmatch();
+}
+if (!el.marksGameToggle || !el.fragmatchGameToggle) {
+  console.warn("Game toggle element(s) not found - check for a stale cached copy of index.html.");
+}
+if (el.marksGameToggle) {
+  el.marksGameToggle.querySelectorAll(".seg-switch-btn").forEach(btn => {
+    btn.addEventListener("click", () => setMarksGame(btn.dataset.game));
+  });
+}
+if (el.fragmatchGameToggle) {
+  el.fragmatchGameToggle.querySelectorAll(".seg-switch-btn").forEach(btn => {
+    btn.addEventListener("click", () => setFragmatchGame(btn.dataset.game));
+  });
+}
+
 window.addEventListener("resize", () => {
   drawGraph(el.activityCanvas, combinedActivity(), flattenEvents(), 96);
   drawOpenServerGraphs();
 });
 
+// Also re-check on resize - a name that fit before a column got narrower
+// (or a table scrolled into a smaller viewport) might overflow now.
+window.addEventListener("resize", () => {
+  document.querySelectorAll(".name").forEach(initMarquee);
+});
+
+new MutationObserver(mutations => {
+  for (const m of mutations) {
+    m.addedNodes.forEach(node => {
+      if (node.nodeType !== 1) return;
+      if (node.classList && node.classList.contains("name")) initMarquee(node);
+      if (node.querySelectorAll) node.querySelectorAll(".name").forEach(initMarquee);
+    });
+  }
+}).observe(document.body, { childList: true, subtree: true });
+
 setAutoRefresh(false);
+setMarksGame(selectedMarksGame);
+setFragmatchGame(selectedFragmatchGame);
 refresh();
 </script>
 </body>

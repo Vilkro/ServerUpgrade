@@ -7,10 +7,14 @@ Server configs and web dashboard for running **Serious Sam Classic: The First En
 
 ## Contents
 
-- `TFE105/Scripts/Dedicated/RocketJump` - dedicated server config (`init.ini`, per-round
-  `N_begin.ini`/`N_end.ini` scripts). `init_source.ini` is the original config prior to
-  encoding Cyrillic strings for in-game readability.
-- `TSE107/Mods/ClassicsPatchMod` - mod shell used for the TSE 1.07 build.
+- `TFE105/Scripts/Dedicated/` and `TSE107/Scripts/Dedicated/` - dedicated server configs, one
+  folder per server type: `CustomCoop` (standard coop), `CustomFrag` (TSE fragmatch only), and
+  `RocketJump` (Raiders of Marks). Each has an `init.ini` plus per-level `N_begin.ini`/
+  `N_end.ini` scripts that stay synced to the actual current level (see below), even across
+  coop map transitions. `init_source.ini` (one level up, shared by all three) is the original
+  config prior to encoding Cyrillic strings with `convert.py` for in-game readability. Meant as a starting point -
+  copy a folder and edit the numbered scripts to set up your own maps.
+- `TFE105/Mods/ClassicsPatchMod` and `TSE107/Mods/ClassicsPatchMod` - mod shells for each build.
 - `Dashboard/` - Flask + single-page-HTML web dashboard for monitoring and moderating the
   running servers.
 
@@ -31,22 +35,28 @@ of the full upstream feature set, it adds:
   333networks, without leaving the game.
 - **ScriptScheduler** - a delayed-execution queue (`ScheduleScript`) used to build timers and
   self-rescheduling behavior straight from `init.ini`.
-- **Tracking (RJT, work in progress)** - server-side rocket-jump tracking and scoring: net
-  height gained, apex height, peak vertical velocity, hit-angle accuracy, and in-chat
-  announcements for qualifying jumps.
+- **Round sync** - the per-level `N_begin.ini`/`N_end.ini` pair always matches the level actually
+  being played, for both fragmatch and coop.
+- **Tracking** - AFK detection, out-of-bounds detection, and in-chat announcements for collected
+  Marks and updated coop respawn points.
 - **Multilingual chat & voting** - EN/RU chat routed per recipient by stored language
   preference, plus chat-driven map voting and player kick/ban voting.
-- **ServerUtilities sandbox tools** - bulk entity cleanup/inspection and batch property edits
-  for level setup (mover activation modes, coop-marker handling, entity property read/write).
-
-See the [fork's README](https://github.com/Vilkro/SuperProject) for the full breakdown of each
-addition, file-by-file.
+- **ServerUtilities** - sandbox commands for clearing out monsters, moving-brush shoot/touch
+  activation, reusable respawn points, and a starry skybox builder.
 
 ## Dashboard
 
-`Dashboard/` is a small Flask app + static single-page UI that polls the running server(s) and,
-via PlayerDB's pending-command queue, can issue kick/mute/unmute actions against a live server
-from a browser. See `Dashboard/SSCP_README.md` for setup.
+`Dashboard/` is a small Flask app + static single-page UI for monitoring and moderating the
+servers, split into two pages:
+
+- A public status page - live server/player counts, an activity graph, frag-match and Marks
+  leaderboards (overall, per-map, rarest finds).
+- A token-gated admin page - live player list with kick/mute dialogs, ban management, the
+  PlayerDB browser, and the pending remote-command queue.
+
+Requires Python 3 - `pip install flask flask-cors requests psutil`, then `python server/app.py`
+(listens on `0.0.0.0:5000`). Configure your server(s) in the `SERVERS` list near the top of
+`app.py`, and change the hardcoded `ADMIN_TOKEN` there before exposing the admin page.
 
 ## Acknowledgments
 
@@ -59,9 +69,6 @@ from a browser. See `Dashboard/SSCP_README.md` for setup.
   for over a decade with excellent server code. I don't have access to that codebase - these
   features were reimplemented independently by observing how they behave from a player's
   perspective, not by copying source.
-- I have only basic coding skills myself; most of the implementation was written with the help
-  of Claude (Anthropic). The design decisions and feature scope are mine, but a lot of the
-  actual code came out of that collaboration.
 
 ## License
 

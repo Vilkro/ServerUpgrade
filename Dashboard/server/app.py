@@ -24,7 +24,7 @@ Run:
   (then open http://localhost:5000)
 """
 
-import os, io, socket, struct, subprocess, time, threading, json, sqlite3, re, zipfile
+import os, io, shlex, socket, struct, subprocess, tempfile, time, threading, json, sqlite3, re, zipfile
 import psutil   # used by the output-queue watchdog to find/kill a stuck server process
 from datetime import datetime, timezone
 from pathlib import Path
@@ -56,7 +56,7 @@ SERVERS = [
         "host":     "192.168.10.11",
         "port":     25636,             # net_iPort from init.ini
         "db":       "D:/CustomTFE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
-        "demos_dir":"D:/CustomTFE/Demos/rocketjump",              # path to Demos\ folder
+        "demos_dir":"D:/CustomTFE/Demos/RocketJump",              # path to Demos\ folder
         "maps_dir": "D:/CustomTFE",               # path to folder containing map pack zips for download
         "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
         "log_file": "D:/CustomTFE/Dedicated_RocketJump.log",  # the log file this server's process writes to
@@ -92,21 +92,52 @@ SERVERS = [
         "host":     "192.168.10.11",
         "port":     25666,             # net_iPort from init.ini
         "db":       "D:/CustomTSE/Bin/PlayerStats.db",     # path to this server's PlayerStats.db
-        "demos_dir":"D:/CustomTSE/Demos/RocketJump",              # path to Demos\ folder
+        "demos_dir":"D:/CustomTSE/Demos/RocketJumpSE",              # path to Demos\ folder
         "maps_dir": "D:/CustomTSE",               # path to folder containing map pack zips for download
         "rcon_pass":"hrtmcftgmkjfgjsrhu",          # net_strAdminPassword from init.ini
-        "log_file": "D:/CustomTSE/Dedicated_RocketJump.log",  # the log file this server's process writes to
-        "process_match": "D:/CustomTSE/Bin/DedicatedServer_Custom.exe RocketJump",  # used to find the process among possibly-several server instances
+        "log_file": "D:/CustomTSE/Dedicated_RocketJumpSE.log",  # the log file this server's process writes to
+        "process_match": "D:/CustomTSE/Bin/DedicatedServer_Custom.exe RocketJumpSE",  # used to find the process among possibly-several server instances
     },
     # Add more servers here:
     # { "id": "srv2", "label": "Custom Maps", "host": "127.0.0.1", "port": 25667, ... },
 ]
+
+# Which game each server belongs to (tfe/tse), derived from its db path rather
+# than hand-tagged, so it can't drift out of sync with the actual config.
+# Used to let cross-server views (marks leaderboard, fragmatch leaders) be
+# scoped to one game - guids are meaningless to compare across TFE and TSE,
+# even if two players happen to share a nickname.    1111
+for _srv in SERVERS:
+    _db_path_lower = str(_srv.get("db", "")).lower()
+    if "tse" in _db_path_lower:
+        _srv["family"] = "tse"
+    elif "tfe" in _db_path_lower:
+        _srv["family"] = "tfe"
+    else:
+        _srv["family"] = ""
+del _srv, _db_path_lower
 
 POLL_INTERVAL   = 15      # seconds between GameSpy polls
 ACTIVITY_WINDOW = 86400   # 24 h of activity history
 ACTIVITY_BUCKET = 300     # 5-minute buckets for the graph
 ADMIN_TOKEN     = "hrtmcftgmkjfgjsrhu"
 MIN_DEMO_SIZE_BYTES = 1024   # demos smaller than this are hidden (incomplete recordings)
+
+# Several server processes can share one PlayerStats.db file (e.g. two game
+# modes running out of the same install - see fe1/fe2 and se1/se2/se3 above,
+# which point at the same "db" path). PlayerDB now tags every row it writes
+# with the server's net_iPort in a "server_id" column, so rows read from a
+# shared DB can be attributed to the *actual* server that wrote them rather
+# than whichever config entry happened to be used to open the connection.
+# Ports are unique per SERVERS entry, so this lookup is unambiguous.    1111
+_SERVER_BY_PORT = {int(s["port"]): s for s in SERVERS if s.get("port")}
+
+def _server_for_row(row_server_id, fallback_srv: dict) -> dict:
+    """Resolve the real owning server for a DB row via its server_id (port)
+    column, falling back to whichever server config we used to open the
+    connection (covers rows written before this migration, where
+    server_id is 0/unknown)."""
+    return _SERVER_BY_PORT.get(_safe_int(row_server_id)) or fallback_srv
 
 # ─── App ─────────────────────────────────────────────────────────────────────
 
@@ -166,6 +197,16 @@ def _trim_event_log(sid: str, now: int):
     _event_log[sid] = [e for e in _event_log.get(sid, []) if e.get("ts", 0) >= cutoff]
 
 
+def _peak_players(sid: str) -> int:
+    """Highest concurrent player count seen for this specific server in the
+    last ACTIVITY_WINDOW. Backed by _activity_log, which is sampled directly
+    from each server's own GameSpy query every POLL_INTERVAL - unlike the
+    sessions table, this was never shared across servers, so it's already
+    correctly scoped per server with no server_id filtering needed."""
+    log = _activity_log.get(sid, [])
+    return max((c for _t, c in log), default=0)
+
+
 # ─── Flask-side GeoIP (async fallback when DB country is still empty) ─────────
 
 def _geoip_resolve_bg(ip: str) -> None:
@@ -199,6 +240,16 @@ def _geoip_ensure_resolved(ip: str) -> str:
 
 # ─── GameSpy UDP query ────────────────────────────────────────────────────────
 
+def _gamespy_packet_seq(text: str) -> int:
+    """Extracts the packet sequence number from a chunk's \\queryid\\S.N\\
+    field (N = this packet's 1-based position in the response), so a
+    multi-packet response can be reassembled in the correct order.
+    Falls back to 0 (sorts first) if the field is missing - better to risk
+    putting an unlabeled chunk first than crash on a malformed response."""
+    m = re.search(r"\\queryid\\[^\\]*\.(\d+)\\", text)
+    return int(m.group(1)) if m else 0
+
+
 def _gamespy_query(host: str, port: int, timeout: float = 2.0) -> dict | None:
     """
     Send a GameSpy \\status\\ query to a Serious Sam dedicated server.
@@ -215,13 +266,25 @@ def _gamespy_query(host: str, port: int, timeout: float = 2.0) -> dict | None:
         s.settimeout(timeout)
         s.sendto(payload, (host, query_port))
 
-        chunks = []
+        # A response with several players usually doesn't fit in one UDP
+        # packet, so GameSpy splits it into several, each tagged with its
+        # own \queryid\<session>.<n>\ sequence number. UDP does not
+        # guarantee packets arrive in the order they were sent - [1111]
+        # this used to just concatenate them in arrival order, which
+        # corrupted the reassembled string whenever they got reordered:
+        # numplayers (always in the first packet) stayed correct, but a
+        # later packet's player_N block could land mid-string, truncating
+        # the player list the parser sees (e.g. showing 3/8 online but
+        # only ever listing the first player). Sorting by sequence number
+        # before joining reassembles it correctly regardless of arrival order.
+        chunks = []  # list of (seq_number, text)
         got_any_data = False
         while True:
             try:
                 data, _ = s.recvfrom(4096)
                 got_any_data = True
-                chunks.append(data.decode("cp1251", errors="replace"))
+                text = data.decode("cp1251", errors="replace")
+                chunks.append((_gamespy_packet_seq(text), text))
                 if b"\\final\\" in data:
                     break
             except socket.timeout:
@@ -238,7 +301,8 @@ def _gamespy_query(host: str, port: int, timeout: float = 2.0) -> dict | None:
         if not got_any_data:
             return None
 
-        raw = "".join(chunks)
+        chunks.sort(key=lambda c: c[0])
+        raw = "".join(text for _seq, text in chunks)
         return _parse_gamespy(raw)
     except Exception:
         return None
@@ -383,9 +447,11 @@ WATCHDOG_ERROR_TEXT = b"Socket error during UDP send"
 WATCHDOG_THRESHOLD  = 20     # this many matches in the newly-written log = stuck
 WATCHDOG_COOLDOWN   = 90     # don't re-trigger for the same server within this many seconds of killing it
 WATCHDOG_PORT_ERROR_TEXT = b"cannot open UDP socket"
+WATCHDOG_PORT_ERROR_SIGNALS = (b"cannot open UDP socket", b"WSAEADDRINUSE")
 
 _watchdog_offsets = {}   # server_id -> byte offset already read
 _watchdog_last_kill = {}  # server_id -> unix ts of last kill, for the cooldown
+_watchdog_config_warned = set()  # server_ids already warned about missing log_file/process_match, so it's logged once, not every loop
 
 
 def _read_new_log_bytes(sid: str, path: str) -> bytes:
@@ -466,19 +532,160 @@ def _find_pid_holding_udp_port(port: int):
 def _looks_like_our_game_server(pid: int) -> bool:
     try:
         p = psutil.Process(pid)
-        name = (p.name() or "").lower()
-        cmdline = " ".join(p.cmdline() or []).lower()
+        proc_name = (p.name() or "").lower()
     except (psutil.NoSuchProcess, psutil.AccessDenied):
         return False
 
-    if "sam_ds" in name or "serioussam" in name:
+    if "sam_ds" in proc_name or "serioussam" in proc_name or "dedicatedserver" in proc_name:
         return True
 
-    return any(
-        srv.get("process_match", "").lower() in cmdline
-        for srv in SERVERS
-        if srv.get("process_match")
-    )
+    # cmdline() can be denied even when name() isn't (varies by Windows
+    # version/permissions) - don't let that sink the whole check when the
+    # exe-name comparison below might still succeed on its own.
+    try:
+        cmdline = " ".join(p.cmdline() or []).lower().replace("\\", "/")
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        cmdline = ""
+
+    for srv in SERVERS:
+        match_text = srv.get("process_match", "")
+        if not match_text:
+            continue
+        match_norm = match_text.lower().replace("\\", "/")
+
+        # Primary check: does this PID's own executable filename match the
+        # exe named in process_match? Far more reliable than a full
+        # command-line comparison, which can differ in path separators,
+        # quoting, or relative-vs-absolute launching even for the exact
+        # same process - which is what caused this check to wrongly say
+        # "not ours" about a process that actually was ours.    1111
+        match_exe = match_norm.split(" ")[0].rsplit("/", 1)[-1]
+        if match_exe and match_exe == proc_name:
+            return True
+
+        # Fallback: full command-line substring match, both sides
+        # normalized to forward slashes first.
+        if match_norm and match_norm in cmdline:
+            return True
+
+    return False
+
+
+def _kill_and_relaunch(srv: dict, pids_in_order: list) -> bool:
+    """Runs one real, ordered command-line sequence: taskkill each PID in
+    pids_in_order (in that order - an already-dead PID is skipped over, not
+    treated as fatal), pause a moment for Windows to actually release the
+    port, then start the server fresh via the `start` command - exactly the
+    steps you'd type by hand at a command prompt.
+
+    Written out as an actual temporary .bat file rather than one chained
+    "cmd /c a & b & c" string [1111]: passing a multi-command string that
+    itself contains quotes (start requires an explicit "" empty-title
+    argument) through subprocess's own argument-quoting layer *on top of*
+    cmd.exe's own quote parsing is a well-known Windows minefield - the two
+    layers of escaping can silently mangle the final command. That's what
+    caused the "Windows cannot find '\\'" popup: the launch target ended up
+    garbled into a stray backslash instead of the actual exe path. A .bat
+    file has no such problem - each line is just plain text, taskkill/
+    timeout/start each get their own clean line, and it's directly
+    inspectable (it prints its own path before running) if anything about
+    it still needs debugging. It deletes itself as its last line.
+
+    This also keeps the fix from a few iterations ago: IDEs like PyCharm
+    run your script inside a Windows Job Object that force-kills every
+    descendant the moment you stop the run/debug session, and attaches
+    child consoles to its own Run pane instead of giving them a real
+    window. CREATE_BREAKAWAY_FROM_JOB is applied to the cmd.exe that runs
+    the .bat, not to the game server directly - but since cmd.exe itself is
+    no longer part of any job once it breaks away, whatever it goes on to
+    `start` isn't part of one either. The orchestrating cmd.exe window
+    itself is hidden (it's just plumbing); the actual game server still
+    gets its own new, fully visible console via `start`, same as launching
+    it by hand would.
+
+    Run with cwd = the folder containing this server's PlayerStats.db (same
+    folder as its .exe in every current config), since PlayerDB.cpp opens
+    "PlayerStats.db" as a path relative to the process's working directory."""
+    match_text = srv.get("process_match")
+    if not match_text:
+        print(f"[watchdog] {srv['id']}: no process_match configured, can't relaunch")
+        return False
+
+    cwd = None
+    if srv.get("db"):
+        try:
+            cwd = str(Path(srv["db"]).resolve().parent)
+        except OSError:
+            cwd = None
+
+    try:
+        # posix=False: Windows-style backslash paths shouldn't be treated
+        # as escape sequences the way shlex would by default.
+        args = shlex.split(match_text, posix=False)
+    except ValueError as e:
+        print(f"[watchdog] {srv['id']}: couldn't parse process_match '{match_text}': {e}")
+        return False
+
+    if not args:
+        print(f"[watchdog] {srv['id']}: process_match '{match_text}' parsed to nothing")
+        return False
+
+    def _quote(s: str) -> str:
+        return f'"{s}"' if " " in s else s
+
+    # Dedupe while preserving order (proc and holder_pid could theoretically
+    # be the same PID in a rare edge case) and drop anything falsy.
+    seen = set()
+    ordered_pids = []
+    for pid in pids_in_order:
+        if pid and pid not in seen:
+            seen.add(pid)
+            ordered_pids.append(pid)
+
+    lines = ["@echo off"]
+    for pid in ordered_pids:
+        lines.append(f"taskkill /F /PID {pid}")
+    lines.append("timeout /t 1 /nobreak >nul")
+    # "start" needs an explicit "" title argument first, or it can mistake
+    # a quoted exe path for the window title instead of the target to run.
+    lines.append('start "" ' + " ".join(_quote(a) for a in args))
+    lines.append('del "%~f0"')   # self-delete once every step above has run
+
+    try:
+        fd, bat_path = tempfile.mkstemp(suffix=".bat", prefix="watchdog_relaunch_")
+        with os.fdopen(fd, "w") as f:
+            f.write("\r\n".join(lines) + "\r\n")
+    except OSError as e:
+        print(f"[watchdog] {srv['id']}: couldn't write relaunch script: {e}")
+        return False
+
+    print(f"[watchdog] {srv['id']}: running {bat_path}:")
+    for line in lines[:-1]:
+        print(f"    {line}")
+    if cwd:
+        print(f"  (cwd={cwd})")
+
+    popen_kwargs = {"cwd": cwd, "close_fds": True}
+    if os.name == "nt":
+        CREATE_NO_WINDOW = 0x08000000             # the orchestrating cmd.exe itself stays invisible
+        CREATE_NEW_PROCESS_GROUP = 0x00000200     # our Ctrl+C doesn't reach it
+        CREATE_BREAKAWAY_FROM_JOB = 0x01000000    # escape PyCharm's/our launcher's job object
+        popen_kwargs["creationflags"] = (
+            CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB
+        )
+    else:
+        popen_kwargs["start_new_session"] = True   # POSIX equivalent: detach from our session
+
+    try:
+        subprocess.Popen(["cmd", "/c", bat_path], **popen_kwargs)
+        return True
+    except OSError as e:
+        print(f"[watchdog] {srv['id']}: failed to run kill/relaunch sequence: {e}")
+        try:
+            os.remove(bat_path)   # never got the chance to self-delete
+        except OSError:
+            pass
+        return False
 
 
 def _output_queue_watchdog_loop():
@@ -491,9 +698,25 @@ def _output_queue_watchdog_loop():
             match_text = srv.get("process_match")
 
             if not log_file or not match_text:
+                if sid not in _watchdog_config_warned:
+                    print(
+                        f"[watchdog] {sid}: not watched - missing "
+                        f"log_file and/or process_match in config"
+                    )
+                    _watchdog_config_warned.add(sid)
                 continue
 
-            if now - _watchdog_last_kill.get(sid, 0) < WATCHDOG_COOLDOWN:
+            cooldown_left = WATCHDOG_COOLDOWN - (now - _watchdog_last_kill.get(sid, 0))
+            if cooldown_left > 0:
+                # 1111: this used to just "continue" with zero output, which
+                # looks IDENTICAL from the outside to the watchdog not
+                # reacting to anything at all - including during rapid
+                # manual re-testing, where you're likely to land inside your
+                # own previous attempt's cooldown window and see nothing
+                # happen for reasons that have nothing to do with whether
+                # detection itself is working.
+                print(
+                    f"[watchdog] {sid}: in cooldown for {cooldown_left:.0f}s more after the last kill, skipping this check")
                 continue
 
             new_bytes = _read_new_log_bytes(sid, log_file)
@@ -502,36 +725,37 @@ def _output_queue_watchdog_loop():
                 continue
 
             # Port startup failure
-            if WATCHDOG_PORT_ERROR_TEXT in new_bytes:
+            if any(sig in new_bytes for sig in WATCHDOG_PORT_ERROR_SIGNALS):
                 port = srv["port"]
                 holder_pid = _find_pid_holding_udp_port(port)
 
-                if holder_pid and _looks_like_our_game_server(holder_pid):
-                    try:
-                        psutil.Process(holder_pid).kill()
-                        print(
-                            f"[watchdog] {sid}: killed PID "
-                            f"{holder_pid} holding port {port}"
-                        )
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
+                # Safety check: only proceed if whatever's actually squatting
+                # the port looks like one of our own server processes. If
+                # it's something else entirely, we don't know what it is or
+                # whether it's safe to kill - better to leave it alone and
+                # skip this cycle than force-kill an unrelated process.
+                if holder_pid and not _looks_like_our_game_server(holder_pid):
+                    print(
+                        f"[watchdog] {sid}: port {port} is held by PID "
+                        f"{holder_pid}, which doesn't look like one of our "
+                        f"servers - not touching it, skipping this cycle."
+                    )
+                    continue
 
-                proc = _find_server_process(
-                    match_text,
-                    exclude_pid=holder_pid,
-                )
-
-                if proc:
-                    try:
-                        proc.kill()
-                        print(
-                            f"[watchdog] {sid}: killed zombie PID "
-                            f"{proc.pid} for relaunch"
-                        )
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
-                        pass
+                # Found separately from holder_pid so _find_server_process
+                # doesn't see two matches for the same process_match (the
+                # zombie holding the port is often the same server's own
+                # previous instance) and refuse to pick one.
+                proc = _find_server_process(match_text, exclude_pid=holder_pid)
 
                 _watchdog_last_kill[sid] = now
+                # Close the currently-running (broken) server first, then
+                # whatever's actually holding the port, then relaunch -
+                # in that order, as one real command-line sequence.
+                relaunched = _kill_and_relaunch(
+                    srv,
+                    [proc.pid if proc else None, holder_pid],
+                )
 
                 with _cache_lock:
                     existing = _server_cache.get(sid, {})
@@ -544,8 +768,8 @@ def _output_queue_watchdog_loop():
                         "ts": int(now),
                         "type": "stuck",
                         "label": (
-                            f"Port {port} was in use at startup - "
-                            "cleared and restarting"
+                            f"Port {port} was in use at startup - cleared and "
+                            + ("relaunched" if relaunched else "FAILED TO RELAUNCH - check process_match/db path in config")
                         ),
                     })
 
@@ -572,16 +796,8 @@ def _output_queue_watchdog_loop():
                 f"killing PID {proc.pid}"
             )
 
-            try:
-                proc.kill()
-            except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
-                print(
-                    f"[watchdog] {sid}: failed to kill PID "
-                    f"{proc.pid}: {e}"
-                )
-                continue
-
             _watchdog_last_kill[sid] = now
+            relaunched = _kill_and_relaunch(srv, [proc.pid])
 
             with _cache_lock:
                 existing = _server_cache.get(sid, {})
@@ -594,8 +810,8 @@ def _output_queue_watchdog_loop():
                     "ts": int(now),
                     "type": "stuck",
                     "label": (
-                        f"Output queue stuck ({count} repeated errors) "
-                        "- process killed for restart"
+                        f"Output queue stuck ({count} repeated errors) - "
+                        + ("process killed and relaunched" if relaunched else "process killed but FAILED TO RELAUNCH - check process_match/db path in config")
                     ),
                 })
 
@@ -607,172 +823,172 @@ threading.Thread(
     daemon=True,
 ).start()
 
-# ─── 333networks public server list ("All Servers" browse tab) ───────────────
-# Same master list the in-game @browse command reads (Core/Query/PlayersBrowse.cpp),
-# fetched here instead so the dashboard can show it too. Refreshed independently
-# of the GameSpy poller above since it's a much larger, slower-moving list and
-# doesn't need 15s freshness.
-
-BROWSE_GAMES = [
-    {"code": "FE", "slug": "serioussam",   "label": "The First Encounter"},
-    {"code": "SE", "slug": "serioussamse", "label": "The Second Encounter"},
-]
-BROWSE_POLL_INTERVAL = 300  # 5 min - this is a big public list, no need to hammer it
-
-_browse_cache: list = []
-_browse_updated_at: int | None = None
-_browse_last_error: str | None = None
-_browse_lock = threading.Lock()
-
-
-def _own_server_keys() -> set:
-    """(host, port) pairs for servers we manage, so browse entries can be tagged."""
-    return {(s["host"], s["port"]) for s in SERVERS}
-
-
-BROWSE_HEADERS = {
-    # A generic default User-Agent (what requests sends if you don't set one)
-    # gets silently rejected by a lot of APIs, including possibly this one -
-    # identifying the app properly is also just good manners, and 333networks'
-    # own terms ask that use of their data be attributable anyway.
-    "User-Agent": "HyperServerDashboard/1.0 (+https://github.com/Vilkro/ServerUpgrade)",
-    "Accept": "application/json",
-}
-
-
-def _fetch_browse_list() -> tuple[list, str | None]:
-    """Returns (servers, error). error is None on a clean fetch of at least one
-    game; otherwise it's the most recent failure reason, so the frontend can
-    show *why* the list is empty instead of "Loading..." forever."""
-    own_keys = _own_server_keys()
-    servers = []
-    last_error = None
-    any_ok = False
-    for game in BROWSE_GAMES:
-        try:
-            r = requests.get(
-                f"https://master.333networks.com/json/{game['slug']}",
-                headers=BROWSE_HEADERS, timeout=8.0,
-            )
-            r.raise_for_status()
-            entries = r.json()
-            any_ok = True
-        except requests.exceptions.Timeout:
-            last_error = f"Timed out contacting 333networks for {game['code']}"
-            continue
-        except requests.exceptions.ConnectionError as exc:
-            last_error = f"Couldn't reach 333networks ({game['code']}): {exc.__class__.__name__} - check this machine's outbound internet access"
-            continue
-        except requests.exceptions.HTTPError as exc:
-            last_error = f"333networks returned {exc.response.status_code if exc.response is not None else '?'} for {game['code']}"
-            continue
-        except ValueError:
-            last_error = f"333networks response for {game['code']} wasn't valid JSON"
-            continue
-        except Exception as exc:
-            last_error = f"{game['code']}: {exc.__class__.__name__}: {exc}"
-            continue
-        for e in entries or []:
-            ip = e.get("ip", "")
-            port = _safe_int(e.get("hostport"), 0)
-            servers.append({
-                "game":         game["code"],
-                "game_label":   game["label"],
-                "hostname":     e.get("hostname", ""),
-                "mapname":      e.get("mapname", ""),
-                "ip":           ip,
-                "port":         port,
-                "queryport":    _safe_int(e.get("queryport"), port + 1 if port else 0),
-                "numplayers":   _safe_int(e.get("numplayers"), 0),
-                "maxplayers":   _safe_int(e.get("maxplayers"), 0),
-                "is_own":       (ip, port) in own_keys,
-            })
-    servers.sort(key=lambda s: (-s["is_own"], -s["numplayers"], s["hostname"].lower()))
-    return servers, (None if any_ok else last_error)
-
-
-def _browse_poll_loop():
-    global _browse_updated_at, _browse_last_error
-    while True:
-        try:
-            fresh, error = _fetch_browse_list()
-            with _browse_lock:
-                if fresh or error is None:
-                    # only overwrite the cache on a fetch that actually got data,
-                    # or on a clean "zero servers" result - a transient failure
-                    # shouldn't wipe out the last known-good list
-                    _browse_cache[:] = fresh
-                    _browse_updated_at = int(time.time())
-                _browse_last_error = error
-                if error:
-                    print(f"[browse] 333networks fetch failed: {error}")
-        except Exception as exc:
-            with _browse_lock:
-                _browse_last_error = f"Unexpected error: {exc}"
-            print(f"[browse] 333networks poll loop error: {exc}")
-        time.sleep(BROWSE_POLL_INTERVAL)
-
-
-threading.Thread(target=_browse_poll_loop, daemon=True).start()
-
-# ─── 42amsterdam ("All Servers" 3rd tab) ──────────────────────────────────────
-# 42amsterdam.net runs its OWN separate master server - it predates 333networks
-# and isn't reliably a subset of it, so filtering the 333networks feed by name
-# would be guessing. Their site also disallows automated scraping (robots.txt),
-# so this queries their known dedicated servers directly with the same GameSpy
-# \status\ protocol already used above for your own servers - the same thing
-# any server browser does, just pointed at a fixed list instead of a live master.
+# # ─── 333networks public server list ("All Servers" browse tab) ───────────────
+# # Same master list the in-game @browse command reads (Core/Query/PlayersBrowse.cpp),
+# # fetched here instead so the dashboard can show it too. Refreshed independently
+# # of the GameSpy poller above since it's a much larger, slower-moving list and
+# # doesn't need 15s freshness.
 #
-# Fill in the actual host/port pairs for the 42amsterdam servers you want shown.
-# Get these the same way you'd get any server's connect address (in-game server
-# browser, or their site) - left empty here since guessing at IPs would be worse
-# than an honest empty list.
-AMSTERDAM_SERVERS = [
-    # {"host": "1.2.3.4", "port": 25601, "game": "SE"},
-]
-AMSTERDAM_POLL_INTERVAL = 60  # small fixed list - fine to check this often
-
-_amsterdam_cache: list = []
-_amsterdam_updated_at: int | None = None
-_amsterdam_lock = threading.Lock()
-
-
-def _fetch_amsterdam_list() -> list:
-    servers = []
-    for entry in AMSTERDAM_SERVERS:
-        state = _gamespy_query(entry["host"], entry["port"])
-        if state is None:
-            continue  # offline or unreachable - just omit it, don't fake an entry
-        servers.append({
-            "game":       entry.get("game", "?"),
-            "game_label": {"FE": "The First Encounter", "SE": "The Second Encounter"}.get(entry.get("game"), ""),
-            "hostname":   state.get("hostname", ""),
-            "mapname":    state.get("mapname", ""),
-            "ip":         entry["host"],
-            "port":       entry["port"],
-            "numplayers": state.get("numplayers", 0),
-            "maxplayers": state.get("maxplayers", 0),
-            "is_own":     False,
-        })
-    servers.sort(key=lambda s: (-s["numplayers"], s["hostname"].lower()))
-    return servers
-
-
-def _amsterdam_poll_loop():
-    global _amsterdam_updated_at
-    while True:
-        try:
-            fresh = _fetch_amsterdam_list()
-            with _amsterdam_lock:
-                _amsterdam_cache[:] = fresh
-                _amsterdam_updated_at = int(time.time())
-        except Exception:
-            pass
-        time.sleep(AMSTERDAM_POLL_INTERVAL)
-
-
-if AMSTERDAM_SERVERS:
-    threading.Thread(target=_amsterdam_poll_loop, daemon=True).start()
+# BROWSE_GAMES = [
+#     {"code": "FE", "slug": "serioussam",   "label": "The First Encounter"},
+#     {"code": "SE", "slug": "serioussamse", "label": "The Second Encounter"},
+# ]
+# BROWSE_POLL_INTERVAL = 300  # 5 min - this is a big public list, no need to hammer it
+#
+# _browse_cache: list = []
+# _browse_updated_at: int | None = None
+# _browse_last_error: str | None = None
+# _browse_lock = threading.Lock()
+#
+#
+# def _own_server_keys() -> set:
+#     """(host, port) pairs for servers we manage, so browse entries can be tagged."""
+#     return {(s["host"], s["port"]) for s in SERVERS}
+#
+#
+# BROWSE_HEADERS = {
+#     # A generic default User-Agent (what requests sends if you don't set one)
+#     # gets silently rejected by a lot of APIs, including possibly this one -
+#     # identifying the app properly is also just good manners, and 333networks'
+#     # own terms ask that use of their data be attributable anyway.
+#     "User-Agent": "HyperServerDashboard/1.0 (+https://github.com/Vilkro/ServerUpgrade)",
+#     "Accept": "application/json",
+# }
+#
+#
+# def _fetch_browse_list() -> tuple[list, str | None]:
+#     """Returns (servers, error). error is None on a clean fetch of at least one
+#     game; otherwise it's the most recent failure reason, so the frontend can
+#     show *why* the list is empty instead of "Loading..." forever."""
+#     own_keys = _own_server_keys()
+#     servers = []
+#     last_error = None
+#     any_ok = False
+#     for game in BROWSE_GAMES:
+#         try:
+#             r = requests.get(
+#                 f"https://master.333networks.com/json/{game['slug']}",
+#                 headers=BROWSE_HEADERS, timeout=8.0,
+#             )
+#             r.raise_for_status()
+#             entries = r.json()
+#             any_ok = True
+#         except requests.exceptions.Timeout:
+#             last_error = f"Timed out contacting 333networks for {game['code']}"
+#             continue
+#         except requests.exceptions.ConnectionError as exc:
+#             last_error = f"Couldn't reach 333networks ({game['code']}): {exc.__class__.__name__} - check this machine's outbound internet access"
+#             continue
+#         except requests.exceptions.HTTPError as exc:
+#             last_error = f"333networks returned {exc.response.status_code if exc.response is not None else '?'} for {game['code']}"
+#             continue
+#         except ValueError:
+#             last_error = f"333networks response for {game['code']} wasn't valid JSON"
+#             continue
+#         except Exception as exc:
+#             last_error = f"{game['code']}: {exc.__class__.__name__}: {exc}"
+#             continue
+#         for e in entries or []:
+#             ip = e.get("ip", "")
+#             port = _safe_int(e.get("hostport"), 0)
+#             servers.append({
+#                 "game":         game["code"],
+#                 "game_label":   game["label"],
+#                 "hostname":     e.get("hostname", ""),
+#                 "mapname":      e.get("mapname", ""),
+#                 "ip":           ip,
+#                 "port":         port,
+#                 "queryport":    _safe_int(e.get("queryport"), port + 1 if port else 0),
+#                 "numplayers":   _safe_int(e.get("numplayers"), 0),
+#                 "maxplayers":   _safe_int(e.get("maxplayers"), 0),
+#                 "is_own":       (ip, port) in own_keys,
+#             })
+#     servers.sort(key=lambda s: (-s["is_own"], -s["numplayers"], s["hostname"].lower()))
+#     return servers, (None if any_ok else last_error)
+#
+#
+# def _browse_poll_loop():
+#     global _browse_updated_at, _browse_last_error
+#     while True:
+#         try:
+#             fresh, error = _fetch_browse_list()
+#             with _browse_lock:
+#                 if fresh or error is None:
+#                     # only overwrite the cache on a fetch that actually got data,
+#                     # or on a clean "zero servers" result - a transient failure
+#                     # shouldn't wipe out the last known-good list
+#                     _browse_cache[:] = fresh
+#                     _browse_updated_at = int(time.time())
+#                 _browse_last_error = error
+#                 if error:
+#                     print(f"[browse] 333networks fetch failed: {error}")
+#         except Exception as exc:
+#             with _browse_lock:
+#                 _browse_last_error = f"Unexpected error: {exc}"
+#             print(f"[browse] 333networks poll loop error: {exc}")
+#         time.sleep(BROWSE_POLL_INTERVAL)
+#
+#
+# threading.Thread(target=_browse_poll_loop, daemon=True).start()
+#
+# # ─── 42amsterdam ("All Servers" 3rd tab) ──────────────────────────────────────
+# # 42amsterdam.net runs its OWN separate master server - it predates 333networks
+# # and isn't reliably a subset of it, so filtering the 333networks feed by name
+# # would be guessing. Their site also disallows automated scraping (robots.txt),
+# # so this queries their known dedicated servers directly with the same GameSpy
+# # \status\ protocol already used above for your own servers - the same thing
+# # any server browser does, just pointed at a fixed list instead of a live master.
+# #
+# # Fill in the actual host/port pairs for the 42amsterdam servers you want shown.
+# # Get these the same way you'd get any server's connect address (in-game server
+# # browser, or their site) - left empty here since guessing at IPs would be worse
+# # than an honest empty list.
+# AMSTERDAM_SERVERS = [
+#     # {"host": "1.2.3.4", "port": 25601, "game": "SE"},
+# ]
+# AMSTERDAM_POLL_INTERVAL = 60  # small fixed list - fine to check this often
+#
+# _amsterdam_cache: list = []
+# _amsterdam_updated_at: int | None = None
+# _amsterdam_lock = threading.Lock()
+#
+#
+# def _fetch_amsterdam_list() -> list:
+#     servers = []
+#     for entry in AMSTERDAM_SERVERS:
+#         state = _gamespy_query(entry["host"], entry["port"])
+#         if state is None:
+#             continue  # offline or unreachable - just omit it, don't fake an entry
+#         servers.append({
+#             "game":       entry.get("game", "?"),
+#             "game_label": {"FE": "The First Encounter", "SE": "The Second Encounter"}.get(entry.get("game"), ""),
+#             "hostname":   state.get("hostname", ""),
+#             "mapname":    state.get("mapname", ""),
+#             "ip":         entry["host"],
+#             "port":       entry["port"],
+#             "numplayers": state.get("numplayers", 0),
+#             "maxplayers": state.get("maxplayers", 0),
+#             "is_own":     False,
+#         })
+#     servers.sort(key=lambda s: (-s["numplayers"], s["hostname"].lower()))
+#     return servers
+#
+#
+# def _amsterdam_poll_loop():
+#     global _amsterdam_updated_at
+#     while True:
+#         try:
+#             fresh = _fetch_amsterdam_list()
+#             with _amsterdam_lock:
+#                 _amsterdam_cache[:] = fresh
+#                 _amsterdam_updated_at = int(time.time())
+#         except Exception:
+#             pass
+#         time.sleep(AMSTERDAM_POLL_INTERVAL)
+#
+#
+# if AMSTERDAM_SERVERS:
+#     threading.Thread(target=_amsterdam_poll_loop, daemon=True).start()
 
 # ─── DB helpers ───────────────────────────────────────────────────────────────
 
@@ -791,12 +1007,16 @@ def _db(srv_id: str):
     return conn
 
 
-def _unique_db_servers(server_filter: str | None = None) -> list:
-    """Configured servers whose DB paths exist, deduped by resolved DB file."""
+def _unique_db_servers(server_filter: str | None = None, family_filter: str | None = None) -> list:
+    """Configured servers whose DB paths exist, deduped by resolved DB file.
+    family_filter restricts to one game (tfe/tse) without narrowing to a
+    single server - e.g. family_filter="tfe" still returns both fe1 and fe2."""
     result = []
     seen = set()
     for srv in SERVERS:
         if server_filter and srv["id"] != server_filter:
+            continue
+        if family_filter and srv.get("family") != family_filter:
             continue
         path = Path(srv["db"]).resolve()
         key = str(path).casefold()
@@ -910,7 +1130,12 @@ def _server_db_stats(srv_id: str, since: int | None = None) -> dict:
             "active_maps_count": 0,
             "playtime_today": 0,
         }
+    srv = next((s for s in SERVERS if s["id"] == srv_id), None)
+    port = _safe_int(srv.get("port")) if srv else 0
     try:
+        # server_id = 0 covers rows written before the migration (unknown
+        # server) - only worth including here if this server's own DB has
+        # no rows tagged with its real port yet (fresh migration window).
         row = conn.execute("""
             SELECT
                 COUNT(*) AS sessions_today,
@@ -918,8 +1143,8 @@ def _server_db_stats(srv_id: str, since: int | None = None) -> dict:
                 COUNT(DISTINCT map) AS active_maps_count,
                 COALESCE(SUM(CASE WHEN ended >= started THEN ended - started ELSE 0 END), 0) AS playtime_today
             FROM sessions
-            WHERE started >= ? OR ended >= ?
-        """, (since, since)).fetchone()
+            WHERE (started >= ? OR ended >= ?) AND server_id = ?
+        """, (since, since, port)).fetchone()
         return dict(row) if row else {}
     finally:
         conn.close()
@@ -1171,11 +1396,11 @@ def _map_summaries(srv: dict, since: int, limit: int) -> list:
                 MIN(started) AS first_seen,
                 MAX(ended) AS last_seen
             FROM sessions
-            WHERE started >= ? OR ended >= ?
+            WHERE (started >= ? OR ended >= ?) AND server_id = ?
             GROUP BY map
             ORDER BY last_seen DESC
             LIMIT ?
-        """, (since, since, limit)).fetchall()
+        """, (since, since, _safe_int(srv.get("port")), limit)).fetchall()
         result = []
         for row in rows:
             item = dict(row)
@@ -1188,21 +1413,23 @@ def _map_summaries(srv: dict, since: int, limit: int) -> list:
         conn.close()
 
 
-def _marks_snapshot(server_filter: str | None, selected_map: str | None,
-                    limit: int, recent_limit: int, rare_limit: int) -> dict:
+def _marks_snapshot(server_filter: str | None, family_filter: str | None, selected_map: str | None,
+                    limit: int, recent_limit: int) -> dict:
     known_marks = set()
     known_by_map = {}
     player_marks = {}
     player_map_marks = {}
     player_names = {}
     recent = []
-    rare_finders = {}
     map_latest = {}
 
-    for srv in _unique_db_servers(server_filter):
+    for srv in _unique_db_servers(server_filter, family_filter):
         conn = _db(srv["id"])
         if not conn:
             continue
+        # When a specific server is selected, only rows actually written by
+        # that server's own process count - not siblings sharing its DB file.
+        target_port = _safe_int(srv.get("port")) if server_filter else None
         try:
             if not _table_exists(conn, "marks_collected"):
                 continue
@@ -1213,7 +1440,8 @@ def _marks_snapshot(server_filter: str | None, selected_map: str | None,
                     COALESCE(p.name, mc.guid) AS name,
                     mc.mark,
                     COALESCE(mc.map, '') AS map,
-                    mc.collected_at
+                    mc.collected_at,
+                    mc.server_id
                 FROM marks_collected mc
                 LEFT JOIN players p ON p.guid = mc.guid
             """).fetchall()
@@ -1221,26 +1449,34 @@ def _marks_snapshot(server_filter: str | None, selected_map: str | None,
             conn.close()
 
         for row in rows:
+            if target_port is not None and _safe_int(row["server_id"]) != target_port:
+                continue
+
             guid = row["guid"] or ""
             mark = row["mark"] or ""
             map_name = row["map"] or ""
             if not guid or not mark:
                 continue
 
-            known_marks.add(mark)
+            # Keyed by (map, mark), not mark alone - two different maps can
+            # both have a mark named e.g. "Secret" without being the same
+            # collectible. known_by_map/player_map_marks were already scoped
+            # per-map so they were unaffected; only these two needed fixing.
+            mark_key = (map_name, mark)
+            known_marks.add(mark_key)
             known_by_map.setdefault(map_name, set()).add(mark)
-            player_marks.setdefault(guid, set()).add(mark)
+            player_marks.setdefault(guid, set()).add(mark_key)
             player_map_marks.setdefault((guid, map_name), set()).add(mark)
-            rare_finders.setdefault((map_name, mark), set()).add(guid)
 
             if row["name"]:
                 player_names[guid] = row["name"]
 
+            row_srv = _server_for_row(row["server_id"], srv)
             ts = _safe_int(row["collected_at"])
             map_latest[map_name] = max(map_latest.get(map_name, 0), ts)
             recent.append({
-                "server_id": srv["id"],
-                "server_label": srv.get("label", ""),
+                "server_id": row_srv["id"],
+                "server_label": row_srv.get("label", ""),
                 "guid": guid,
                 "name": row["name"] or guid,
                 "mark": mark,
@@ -1292,16 +1528,6 @@ def _marks_snapshot(server_filter: str | None, selected_map: str | None,
 
     recent.sort(key=lambda r: r["collected_at"], reverse=True)
 
-    rarest = []
-    for (map_name, mark), finders in rare_finders.items():
-        rarest.append({
-            "mark": mark,
-            "map": map_name,
-            "map_title": _display_map_name(map_name),
-            "finders": len(finders),
-        })
-    rarest.sort(key=lambda r: (r["finders"], r["map_title"].casefold(), r["mark"].casefold()))
-
     return {
         "known_marks": len(known_marks),
         "known_maps": len(maps),
@@ -1311,19 +1537,74 @@ def _marks_snapshot(server_filter: str | None, selected_map: str | None,
         "overall": overall[:limit],
         "by_map": by_map[:limit],
         "recent": recent[:recent_limit],
-        "rarest": rarest[:rare_limit],
     }
 
 
-def _fragmatch_snapshot(server_filter: str | None, limit: int, recent_limit: int) -> dict:
+FRAGMATCH_GAME_GROUP_OVERLAP = 30   # seconds of overlap required to treat two players' sessions as "played together"
+FRAGMATCH_LEADERS_MAX = 50          # hard cap regardless of ?limit=
+
+def _group_fragmatch_games(rows: list) -> list:
+    """Merges per-player fragmatch session rows into 'games': rows on the same
+    server + map whose [started, ended] windows overlap become one entry with
+    a list of players, instead of one duplicate-looking row per player.
+    Same sorted-interval-merge approach as _infer_demo_part_maps/_overlap_seconds
+    use for grouping demo parts."""
+    buckets: dict = {}
+    for r in rows:
+        buckets.setdefault((r["server_id"], r["map"]), []).append(r)
+
+    games = []
+    for _key, bucket in buckets.items():
+        bucket.sort(key=lambda r: r["started"])
+        current = None
+        for r in bucket:
+            if current is not None and _overlap_seconds(
+                current["started"], current["ended"], r["started"], r["ended"]
+            ) >= FRAGMATCH_GAME_GROUP_OVERLAP:
+                current["started"] = min(current["started"], r["started"])
+                current["ended"] = max(current["ended"], r["ended"])
+                current["rows"].append(r)
+            else:
+                if current is not None:
+                    games.append(current)
+                current = {"started": r["started"], "ended": r["ended"], "rows": [r]}
+        if current is not None:
+            games.append(current)
+
+    out = []
+    for g in games:
+        rows_in_game = sorted(g["rows"], key=lambda r: -r["frags"])
+        first = rows_in_game[0]
+        out.append({
+            "server_id": first["server_id"],
+            "server_label": first["server_label"],
+            "map": first["map"],
+            "map_title": first["map_title"],
+            "started": g["started"],
+            "ended": g["ended"],
+            "duration": max(0, g["ended"] - g["started"]),
+            "players": [
+                {
+                    "guid": r["guid"], "name": r["name"],
+                    "frags": r["frags"], "deaths": r["deaths"], "score": r["score"],
+                }
+                for r in rows_in_game
+            ],
+        })
+    out.sort(key=lambda g: g["ended"], reverse=True)
+    return out
+
+
+def _fragmatch_snapshot(server_filter: str | None, family_filter: str | None, limit: int, recent_limit: int) -> dict:
     players = {}
-    recent = []
+    session_rows = []
     totals = {"sessions": 0, "frags": 0, "deaths": 0, "playtime": 0}
 
-    for srv in _unique_db_servers(server_filter):
+    for srv in _unique_db_servers(server_filter, family_filter):
         conn = _db(srv["id"])
         if not conn:
             continue
+        target_port = _safe_int(srv.get("port")) if server_filter else None
         try:
             if not _table_exists(conn, "fragmatch_sessions"):
                 continue
@@ -1339,6 +1620,7 @@ def _fragmatch_snapshot(server_filter: str | None, limit: int, recent_limit: int
                     f.score,
                     f.started,
                     f.ended,
+                    f.server_id,
                     COALESCE(f.duration, CASE WHEN f.ended >= f.started THEN f.ended - f.started ELSE 0 END) AS duration
                 FROM fragmatch_sessions f
                 LEFT JOIN players p ON p.guid = f.guid
@@ -1347,6 +1629,9 @@ def _fragmatch_snapshot(server_filter: str | None, limit: int, recent_limit: int
             conn.close()
 
         for row in rows:
+            if target_port is not None and _safe_int(row["server_id"]) != target_port:
+                continue
+
             guid = row["guid"] or ""
             if not guid:
                 continue
@@ -1378,13 +1663,17 @@ def _fragmatch_snapshot(server_filter: str | None, limit: int, recent_limit: int
             item["last_seen"] = max(item["last_seen"], ended)
 
             totals["sessions"] += 1
-            totals["frags"] += frags
+            # 1111: a session's frags can go negative (self-kills cost a
+            # frag in this scoring), but that shouldn't drag the site-wide
+            # total down - only its own leaderboard/K-D standing.
+            totals["frags"] += max(0, frags)
             totals["deaths"] += deaths
             totals["playtime"] += duration
 
-            recent.append({
-                "server_id": srv["id"],
-                "server_label": srv.get("label", ""),
+            row_srv = _server_for_row(row["server_id"], srv)
+            session_rows.append({
+                "server_id": row_srv["id"],
+                "server_label": row_srv.get("label", ""),
                 "guid": guid,
                 "name": row["name"] or guid,
                 "map": row["map"] or "",
@@ -1400,44 +1689,53 @@ def _fragmatch_snapshot(server_filter: str | None, limit: int, recent_limit: int
     leaders = []
     for item in players.values():
         deaths = item["deaths"]
+        frags = item["frags"]
+        kd = round(frags / deaths, 2) if deaths else float(frags)
+        # 1111: a net-negative record (more self-kills than actual frags)
+        # doesn't belong on a "leaders" list at all - excluded here rather
+        # than floor-clamped, so it can't rank ahead of a genuine 0/0 rookie.
+        if frags < 1 or kd < 0:
+            continue
         leaders.append({
             **{k: v for k, v in item.items() if k != "maps"},
             "maps": len([m for m in item["maps"] if m]),
-            "kd": round(item["frags"] / deaths, 2) if deaths else float(item["frags"]),
+            "kd": kd,
         })
-    leaders.sort(key=lambda p: (-p["frags"], p["deaths"], -p["playtime"], _clean_sam_text(p["name"]).casefold()))
-    recent.sort(key=lambda r: r["ended"], reverse=True)
+    # Sort by K/D ratio (ties broken by frags, then playtime, then name).
+    leaders.sort(key=lambda p: (-p["kd"], -p["frags"], -p["playtime"], _clean_sam_text(p["name"]).casefold()))
+
+    games = _group_fragmatch_games(session_rows)
 
     return {
         "totals": totals,
-        "leaders": leaders[:limit],
-        "recent": recent[:recent_limit],
+        "leaders": leaders[:min(limit, FRAGMATCH_LEADERS_MAX)],
+        "recent": games[:recent_limit],
     }
 
 # ─── API routes ───────────────────────────────────────────────────────────────
 
-@app.route("/api/browse")
-def get_browse():
-    """Public FE/SE server list from master.333networks.com - the same list
-    the in-game @browse command reads. Refreshed every few minutes in the
-    background; this just serves the cache."""
-    with _browse_lock:
-        return jsonify({
-            "updated_at": _browse_updated_at,
-            "servers":    list(_browse_cache),
-            "error":      _browse_last_error,
-        })
-
-
-@app.route("/api/browse-42amsterdam")
-def get_browse_amsterdam():
-    """42amsterdam servers, queried directly (see AMSTERDAM_SERVERS above -
-    empty by default until real host/port entries are added there)."""
-    with _amsterdam_lock:
-        return jsonify({
-            "updated_at": _amsterdam_updated_at,
-            "servers":    list(_amsterdam_cache),
-        })
+# @app.route("/api/browse")
+# def get_browse():
+#     """Public FE/SE server list from master.333networks.com - the same list
+#     the in-game @browse command reads. Refreshed every few minutes in the
+#     background; this just serves the cache."""
+#     with _browse_lock:
+#         return jsonify({
+#             "updated_at": _browse_updated_at,
+#             "servers":    list(_browse_cache),
+#             "error":      _browse_last_error,
+#         })
+#
+#
+# @app.route("/api/browse-42amsterdam")
+# def get_browse_amsterdam():
+#     """42amsterdam servers, queried directly (see AMSTERDAM_SERVERS above -
+#     empty by default until real host/port entries are added there)."""
+#     with _amsterdam_lock:
+#         return jsonify({
+#             "updated_at": _amsterdam_updated_at,
+#             "servers":    list(_amsterdam_cache),
+#         })
 
 
 @app.route("/api/health")
@@ -1482,6 +1780,39 @@ def debug_players(srv_id: str):
     return jsonify({"online": rows, "db_players": db_names})
 
 
+def _global_unique_players_today(since: int) -> int:
+    """True count of distinct players across ALL servers in the given
+    window - NOT the sum of each server's own COUNT(DISTINCT guid). Summing
+    per-server counts double-counts anyone who played on more than one
+    server today (e.g. both fe1 and fe2), since the same guid is legitimately
+    "distinct" within each server's own count but isn't a second unique
+    player site-wide.    1111
+    Unions actual guid sets across the (at most a couple) unique DB files
+    rather than adding up counts, so it's correct even in the unlikely case
+    a guid string were ever shared across two different DBs."""
+    guids = set()
+    for srv in _unique_db_servers():
+        conn = _db(srv["id"])
+        if not conn:
+            continue
+        try:
+            rows = conn.execute(
+                "SELECT DISTINCT guid FROM sessions WHERE started >= ? OR ended >= ?",
+                (since, since),
+            ).fetchall()
+            guids.update(r["guid"] for r in rows if r["guid"])
+        finally:
+            conn.close()
+    return len(guids)
+
+
+@app.route("/api/unique-today")
+def get_unique_today():
+    since = int(time.time()) - ACTIVITY_WINDOW
+    return jsonify({"count": _global_unique_players_today(since)})
+
+
+
 @app.route("/api/servers")
 def get_servers():
     """Live state of all servers, merged with static config labels.
@@ -1520,6 +1851,7 @@ def get_servers():
             "demo_count":     len(demos),
             "demo_game_count": len(demo_games),
             "crash_count":    crash_count,
+            "peak_players":   _peak_players(sid),
             **stats,
             **live,
         })
@@ -1553,7 +1885,12 @@ def get_activity():
             series = []
             for bucket_ts in sorted(buckets):
                 vals = buckets[bucket_ts]
-                series.append([bucket_ts, round(sum(vals) / len(vals), 1)])
+                # 1111: was round(..., 1) - a decimal place on a player COUNT
+                # doesn't mean anything (there's no such thing as 3.5 people
+                # online), and since the frontend sums these across servers
+                # for the combined graph, fractional per-server values were
+                # compounding into fractional combined totals too.
+                series.append([bucket_ts, round(sum(vals) / len(vals))])
 
             result[sid] = series
 
@@ -1602,17 +1939,20 @@ def get_marks():
     values; there is no fixed total or separate marks catalog.
     Optional query params:
       ?server=srv1
+      ?family=tfe|tse   scope to one game - guids aren't comparable across
+                        games, so mixing them can rank unrelated players
+                        together even though names never actually collide
+                        (marks are now keyed by map+name, not name alone)
       ?map=<raw map path>
       ?limit=50
       ?recent=20
-      ?rare=20
     """
     server_filter = request.args.get("server")
+    family_filter = request.args.get("family") or None
     selected_map = request.args.get("map")
     limit = min(_safe_int(request.args.get("limit"), 50), 500)
     recent_limit = min(_safe_int(request.args.get("recent"), 20), 100)
-    rare_limit = min(_safe_int(request.args.get("rare"), 20), 100)
-    return jsonify(_marks_snapshot(server_filter, selected_map, limit, recent_limit, rare_limit))
+    return jsonify(_marks_snapshot(server_filter, family_filter, selected_map, limit, recent_limit))
 
 
 @app.route("/api/fragmatch")
@@ -1621,15 +1961,21 @@ def get_fragmatch():
     Fragmatch statistics from fragmatch_sessions.
     The dashboard only reads this table; it is written by PlayerDB on server
     disconnect for sessions that were running gam_iStartMode == GM_FRAGMATCH.
+    "leaders" is sorted by K/D ratio and hard-capped at 50 regardless of
+    ?limit=. "recent" entries are one per *game* (players who overlapped in
+    time on the same server+map are merged into one entry's "players" list),
+    not one per player-session row.
     Optional query params:
       ?server=srv1
-      ?limit=50
-      ?recent=20
+      ?family=tfe|tse   scope to one game, same reasoning as /api/marks
+      ?limit=50    (leaders; capped at 50 either way)
+      ?recent=10
     """
     server_filter = request.args.get("server")
+    family_filter = request.args.get("family") or None
     limit = min(_safe_int(request.args.get("limit"), 50), 500)
-    recent_limit = min(_safe_int(request.args.get("recent"), 20), 100)
-    return jsonify(_fragmatch_snapshot(server_filter, limit, recent_limit))
+    recent_limit = min(_safe_int(request.args.get("recent"), 10), 100)
+    return jsonify(_fragmatch_snapshot(server_filter, family_filter, limit, recent_limit))
 
 
 @app.route("/api/players")
